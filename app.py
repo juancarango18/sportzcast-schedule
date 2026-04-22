@@ -1,4 +1,5 @@
 import streamlit as st
+import scheduler
 import psycopg2
 import bcrypt
 import subprocess
@@ -275,22 +276,13 @@ if st.session_state.role == 'admin':
     with col2:
         st.subheader("Step 2: Generate Schedule")
         if st.button("🧠 Generate Excel Matrix", type="primary", use_container_width=True, disabled=is_approved):
-            ui_data = {
-                "TARGET_YEAR": selected_year,
-                "TARGET_MONTH": selected_month,
-                "PTO_REQUESTS": all_ptos,
-                "REQUESTED_DAYS_OFF": all_rdos,
-                "HOLIDAYS": holiday_workers
-            }
-            with open("ui_inputs.json", "w") as f:
-                json.dump(ui_data, f)
-                
+
             with st.spinner("Running Master Algorithm..."):
-                subprocess.run(["python", "scheduler.py"])
-                
+                # We now run the function directly instead of using a subprocess!
+                generated_filename = scheduler.generate_matrix(selected_year, selected_month, all_ptos, all_rdos, holiday_workers)
+
             # UPLOAD THE GENERATED FILE TO SUPABASE!
-            generated_filename = f"{calendar.month_name[selected_month]}_{selected_year}_Matrix_Schedule.xlsx"
-            if os.path.exists(generated_filename):
+            if generated_filename and os.path.exists(generated_filename):
                 with open(generated_filename, "rb") as f:
                     excel_data = f.read()
                 conn = get_db_connection()
@@ -303,9 +295,11 @@ if st.session_state.role == 'admin':
                 """, (selected_year, selected_month, psycopg2.Binary(excel_data)))
                 conn.commit()
                 conn.close()
-                
-            st.success("Draft Matrix generated and safely backed up to Cloud!")
-            st.rerun()
+
+                st.success("Draft Matrix generated and safely backed up to Cloud!")
+                st.rerun()
+            else:
+                st.error("Failed to generate matrix. Please check inputs.")
 
     st.markdown("---")
     if db_file_bytes:
