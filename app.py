@@ -276,30 +276,32 @@ if st.session_state.role == 'admin':
     with col2:
         st.subheader("Step 2: Generate Schedule")
         if st.button("🧠 Generate Excel Matrix", type="primary", use_container_width=True, disabled=is_approved):
-
-            with st.spinner("Running Master Algorithm..."):
-                # We now run the function directly instead of using a subprocess!
-                generated_filename = scheduler.generate_matrix(selected_year, selected_month, all_ptos, all_rdos, holiday_workers)
-
-            # UPLOAD THE GENERATED FILE TO SUPABASE!
-            if generated_filename and os.path.exists(generated_filename):
-                with open(generated_filename, "rb") as f:
-                    excel_data = f.read()
-                conn = get_db_connection()
-                c = conn.cursor()
-                c.execute("""
-                    INSERT INTO schedule_status (target_year, target_month, is_approved, excel_file)
-                    VALUES (%s, %s, FALSE, %s)
-                    ON CONFLICT (target_year, target_month)
-                    DO UPDATE SET excel_file = EXCLUDED.excel_file, is_approved = FALSE;
-                """, (selected_year, selected_month, psycopg2.Binary(excel_data)))
-                conn.commit()
-                conn.close()
-
-                st.success("Draft Matrix generated and safely backed up to Cloud!")
-                st.rerun()
+            
+            # THE NEW SAFETY LOCK!
+            if not os.path.exists("games_schedule.csv"):
+                st.error("🚨 Missing Game Data! Please click '🚀 Run Web Scraper' (Step 1) first so the engine knows what games are happening.")
             else:
-                st.error("Failed to generate matrix. Please check inputs.")
+                with st.spinner("Running Master Algorithm..."):
+                    generated_filename = scheduler.generate_matrix(selected_year, selected_month, all_ptos, all_rdos, holiday_workers)
+                    
+                if generated_filename and os.path.exists(generated_filename):
+                    with open(generated_filename, "rb") as f:
+                        excel_data = f.read()
+                    conn = get_db_connection()
+                    c = conn.cursor()
+                    c.execute("""
+                        INSERT INTO schedule_status (target_year, target_month, is_approved, excel_file)
+                        VALUES (%s, %s, FALSE, %s)
+                        ON CONFLICT (target_year, target_month)
+                        DO UPDATE SET excel_file = EXCLUDED.excel_file, is_approved = FALSE;
+                    """, (selected_year, selected_month, psycopg2.Binary(excel_data)))
+                    conn.commit()
+                    conn.close()
+                    
+                    st.success("Draft Matrix generated and safely backed up to Cloud!")
+                    st.rerun()
+                else:
+                    st.error("Failed to generate matrix. Please check inputs.")
 
     st.markdown("---")
     if db_file_bytes:
