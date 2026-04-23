@@ -10,6 +10,15 @@ import json
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
+# Setup Chrome options for the Cloud
+chrome_options = Options()
+chrome_options.add_argument("--headless") # Runs Chrome in invisible mode
+chrome_options.add_argument("--no-sandbox") # Bypasses OS security model
+chrome_options.add_argument("--disable-dev-shm-usage") # Overcomes limited resource problems
+
+# Initialize the driver
+driver = webdriver.Chrome(options=chrome_options)
+
 # ==========================================
 # 1. DYNAMIC CONFIGURATION
 # ==========================================
