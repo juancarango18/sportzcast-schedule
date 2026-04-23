@@ -263,7 +263,7 @@ if st.session_state.role == 'admin':
 
     col1, col2 = st.columns(2)
     
-   with col1:
+    with col1:
         st.subheader("Step 1: Get Live Games")
         if st.button("🚀 Run Web Scraper", use_container_width=True, disabled=is_approved):
             with st.spinner("Scraping live data..."):
