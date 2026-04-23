@@ -263,15 +263,23 @@ if st.session_state.role == 'admin':
 
     col1, col2 = st.columns(2)
     
-    with col1:
+   with col1:
         st.subheader("Step 1: Get Live Games")
         if st.button("🚀 Run Web Scraper", use_container_width=True, disabled=is_approved):
             with st.spinner("Scraping live data..."):
                 ui_data = {"TARGET_YEAR": selected_year, "TARGET_MONTH": selected_month}
                 with open("ui_inputs.json", "w") as f:
                     json.dump(ui_data, f)
-                subprocess.run(["python", "scraper.py"])
-            st.success("Games successfully scraped!")
+                
+                # We are adding 'capture_output' to catch the hidden crash!
+                result = subprocess.run(["python", "scraper.py"], capture_output=True, text=True)
+                
+            # Check if it actually worked
+            if os.path.exists("games_schedule.csv"):
+                st.success("Games successfully scraped!")
+            else:
+                st.error("🚨 The scraper crashed in the background! Here is the error:")
+                st.code(result.stderr) # This prints the exact Python error on your screen
 
     with col2:
         st.subheader("Step 2: Generate Schedule")
