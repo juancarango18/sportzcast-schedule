@@ -4,6 +4,7 @@ import psycopg2
 import bcrypt
 import subprocess
 import os
+import sys
 import json
 import calendar
 import pandas as pd
@@ -271,15 +272,16 @@ if st.session_state.role == 'admin':
                 with open("ui_inputs.json", "w") as f:
                     json.dump(ui_data, f)
                 
-                # We are adding 'capture_output' to catch the hidden crash!
-                result = subprocess.run(["python", "scraper.py"], capture_output=True, text=True)
+                # THE FIX: using sys.executable forces it to use the correct Cloud Python!
+                import sys
+                result = subprocess.run([sys.executable, "scraper.py"], capture_output=True, text=True)
                 
             # Check if it actually worked
             if os.path.exists("games_schedule.csv"):
                 st.success("Games successfully scraped!")
             else:
                 st.error("🚨 The scraper crashed in the background! Here is the error:")
-                st.code(result.stderr) # This prints the exact Python error on your screen
+                st.code(result.stderr)
 
     with col2:
         st.subheader("Step 2: Generate Schedule")
