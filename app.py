@@ -208,9 +208,7 @@ if status_row:
 # ==========================================
 # UI: TEAM MEMBER PORTAL
 # ==========================================
-    elif st.session_state.role == "user":
-        
-        # Add the logo here!
+elif st.session_state.role == "user":
         try:
             st.image("logo2.png", width=200)
         except:
@@ -266,13 +264,11 @@ if st.session_state.role == 'user':
 # UI: TEAM LEAD (ADMIN) PORTAL
 # ==========================================
 # ==========================================
-    if st.session_state.role == "admin":
-        
-        # Add the logo here!
-        try:
+if st.session_state.role == "admin":
+        #try:
             st.image("logo2.png", width=200) 
-        except:
-            pass
+        #except:
+            #pass
             
         st.title("🗓️ Sportzcast Scheduler")
         
