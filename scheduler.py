@@ -347,7 +347,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                         
                     master_schedule_data.append({
                         "Date_Display": display_date, "Staff Member": name,
-                        "Shift": f"{shift_start_dt.strftime('%H')} - {shift_end_dt.strftime('%H')}",
+                        "Shift": f"{shift_start_dt.strftime('%H')}:00 - {shift_end_dt.strftime('%H')}:00",
                         "Color_Key": "LATE_GAME" if (shift_end_dt.hour >= 20 or shift_end_dt.hour < 6) else "BASELINE"
                     })
                     break 
