@@ -114,7 +114,7 @@ if not st.session_state.logged_in:
         except:
             pass
             
-        st.title("Sportzcast Scheduler")
+        st.title("Support Scheduler")
         st.markdown("Welcome! Please log in or claim your team account.")
         
         tab1, tab2 = st.tabs(["🔒 Log In", "📝 Sign Up / Claim Account"])
@@ -173,7 +173,7 @@ st.sidebar.markdown(f"👤 Logged in as: **{st.session_state.username}**")
 st.sidebar.button("Logout", on_click=logout)
 st.sidebar.markdown("---")
 
-st.title("🗓️ Sports Scheduling Matrix")
+st.title("🗓️ Sportzcast Scheduling Matrix")
 
 col_y, col_m = st.columns(2)
 with col_y:
@@ -208,6 +208,16 @@ if status_row:
 # ==========================================
 # UI: TEAM MEMBER PORTAL
 # ==========================================
+    elif st.session_state.role == "Team Member":
+        
+        # Add the logo here!
+        try:
+            st.image("logo2.png", width=200)
+        except:
+            pass
+            
+        st.title(f"👋 Welcome, {st.session_state.username}!")
+
 if st.session_state.role == 'user':
     
     if db_file_bytes and is_approved:
@@ -255,6 +265,18 @@ if st.session_state.role == 'user':
 # ==========================================
 # UI: TEAM LEAD (ADMIN) PORTAL
 # ==========================================
+# ==========================================
+    if st.session_state.role == "Team Lead":
+        
+        # Add the logo here!
+        try:
+            st.image("logo2.png", width=200) 
+        except:
+            pass
+            
+        st.title("🗓️ Sportzcast Scheduler")
+        
+
 if st.session_state.role == 'admin':
     
     all_ptos, all_rdos = get_all_requests(selected_year, selected_month)
