@@ -264,7 +264,7 @@ if st.session_state.role == 'user':
 # UI: TEAM LEAD (ADMIN) PORTAL
 # ==========================================
 # ==========================================
-if st.session_state.role == "Team Lead":
+if st.session_state.role == "admin":
         
         # 1. The Logo goes FIRST!
         st.image("logo2.png", width=200)
