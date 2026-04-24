@@ -1,15 +1,30 @@
 import streamlit as st
-import scheduler
+import pandas as pd
+import json
+import os
+import subprocess
 import psycopg2
 import bcrypt
-import subprocess
-import os
-import sys
-import json
 import calendar
-import pandas as pd
-from datetime import datetime
+import openpyxl
+import scheduler
+import sys
 import io
+
+# ==========================================
+# ENTERPRISE UI SETUP (MUST BE FIRST!)
+# ==========================================
+st.set_page_config(
+    page_title="Sportzcast Scheduler",
+    page_icon="🗓️", 
+    layout="wide", # This stretches the app to use the whole screen!
+    initial_sidebar_state="expanded"
+)
+
+try:
+    st.logo("logo.png")
+except:
+    pass # Fails safely if the logo hasn't loaded yet
 
 # ==========================================
 # PAGE CONFIGURATION
@@ -89,56 +104,65 @@ def logout():
 # UI: LOGIN & SIGN-UP SCREEN
 # ==========================================
 if not st.session_state.logged_in:
-    st.title("🗓️ Sports Scheduler Pro")
-    st.markdown("Welcome! Please log in or claim your team account.")
+    # We use columns to center the login box perfectly in the middle of the screen
+    spacer_left, center_col, spacer_right = st.columns([1, 2, 1])
     
-    tab1, tab2 = st.tabs(["🔒 Log In", "📝 Sign Up / Claim Account"])
-    
-    with tab1:
-        with st.form("login_form"):
-            user_input = st.text_input("Email or Username")
-            pass_input = st.text_input("Password", type="password")
-            submit_login = st.form_submit_button("Log In")
+    with center_col:
+        try:
+            st.image("logo.png", width=250) # You can adjust this width!
+        except:
+            pass
             
-            if submit_login:
-                role, actual_username = verify_login(user_input, pass_input)
-                if role:
-                    st.session_state.logged_in = True
-                    st.session_state.username = actual_username # Keeps exact name for the engine!
-                    st.session_state.role = role
-                    st.rerun()
-                else:
-                    st.error("Incorrect email/username or password.")
-                    
-    with tab2:
-        st.info("First time here? Select your name to set up your account.")
-        with st.form("signup_form"):
-            new_user = st.selectbox("Select Your Name", TEAM_MEMBERS)
-            new_email = st.text_input("Email Address")
-            new_pass = st.text_input("Create a Password", type="password")
-            confirm_pass = st.text_input("Confirm Password", type="password")
-            submit_signup = st.form_submit_button("Create Account")
-            
-            if submit_signup:
-                if not new_email:
-                    st.error("Please enter an email address.")
-                elif new_pass != confirm_pass:
-                    st.error("Passwords do not match!")
-                elif len(new_pass) < 6:
-                    st.error("Password must be at least 6 characters.")
-                else:
-                    try:
-                        hashed_pw = bcrypt.hashpw(new_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-                        conn = get_db_connection()
-                        c = conn.cursor()
-                        # NOW IT SAVES THE EMAIL TO THE DATABASE!
-                        c.execute("UPDATE users SET password_hash=%s, email=%s WHERE username=%s", (hashed_pw, new_email, new_user))
-                        conn.commit()
-                        conn.close()
-                        st.success("✅ Account successfully claimed! You can now log in using your Email.")
-                    except psycopg2.errors.UniqueViolation:
-                        st.error("That email is already registered to another account.")
-                    
+        st.title("Sportzcast Scheduler")
+        st.markdown("Welcome! Please log in or claim your team account.")
+        
+        tab1, tab2 = st.tabs(["🔒 Log In", "📝 Sign Up / Claim Account"])
+        
+        with tab1:
+            with st.form("login_form"):
+                user_input = st.text_input("Email or Username")
+                pass_input = st.text_input("Password", type="password")
+                submit_login = st.form_submit_button("Log In", use_container_width=True)
+                
+                if submit_login:
+                    role, actual_username = verify_login(user_input, pass_input)
+                    if role:
+                        st.session_state.logged_in = True
+                        st.session_state.username = actual_username
+                        st.session_state.role = role
+                        st.rerun()
+                    else:
+                        st.error("Incorrect email/username or password.")
+                        
+        with tab2:
+            st.info("First time here? Select your name to set up your account.")
+            with st.form("signup_form"):
+                new_user = st.selectbox("Select Your Name", TEAM_MEMBERS)
+                new_email = st.text_input("Email Address")
+                new_pass = st.text_input("Create a Password", type="password")
+                confirm_pass = st.text_input("Confirm Password", type="password")
+                submit_signup = st.form_submit_button("Create Account", use_container_width=True)
+                
+                # ... keep your existing sign-up logic inside here ...
+                if submit_signup:
+                    if not new_email:
+                        st.error("Please enter an email address.")
+                    elif new_pass != confirm_pass:
+                        st.error("Passwords do not match!")
+                    elif len(new_pass) < 6:
+                        st.error("Password must be at least 6 characters.")
+                    else:
+                        try:
+                            hashed_pw = bcrypt.hashpw(new_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                            conn = get_db_connection()
+                            c = conn.cursor()
+                            c.execute("UPDATE users SET password_hash=%s, email=%s WHERE username=%s", (hashed_pw, new_email, new_user))
+                            conn.commit()
+                            conn.close()
+                            st.success("✅ Account successfully claimed! You can now log in using your Email.")
+                        except psycopg2.errors.UniqueViolation:
+                            st.error("That email is already registered to another account.")
+                        
     st.stop()
 
 # ==========================================
