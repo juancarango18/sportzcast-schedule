@@ -264,9 +264,18 @@ if st.session_state.role == 'user':
 # UI: TEAM LEAD (ADMIN) PORTAL
 # ==========================================
 # ==========================================
-if st.session_state.role == "admin":
-    st.image("logo2.png", width=200)
-    st.title("🗓️ Sportzcast Scheduler")
+if st.session_state.role == "Team Lead":
+        
+        # 1. The Logo goes FIRST!
+        st.image("logo2.png", width=200)
+        
+        # 2. The Main Title goes SECOND! (Delete the duplicate one if you have two!)
+        st.title("🗓️ Sportzcast Scheduler")
+        
+        # 3. Your Selectors go THIRD!
+        col_year, col_month = st.columns(2)
+        with col_year:
+            selected_year = st.selectbox("Select Year", [2024, 2025, 2026])
         
 if st.session_state.role == 'admin':
     
