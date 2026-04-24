@@ -208,7 +208,7 @@ if status_row:
 # ==========================================
 # UI: TEAM MEMBER PORTAL
 # ==========================================
-    elif st.session_state.role == "Team Member":
+    elif st.session_state.role == "user":
         
         # Add the logo here!
         try:
@@ -266,7 +266,7 @@ if st.session_state.role == 'user':
 # UI: TEAM LEAD (ADMIN) PORTAL
 # ==========================================
 # ==========================================
-    if st.session_state.role == "Team Lead":
+    if st.session_state.role == "admin":
         
         # Add the logo here!
         try:
