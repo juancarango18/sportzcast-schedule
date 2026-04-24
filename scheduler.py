@@ -183,6 +183,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
 
     master_schedule_data = []
     num_days = calendar.monthrange(YEAR, MONTH)[1] 
+    early_shifts_count = {name: 0 for name in TEAM_MEMBERS}
 
     comp_queue = [m for m in TEAM_MEMBERS if m not in FIXED_DAYS_OFF]
     comp_idx = 0
@@ -382,7 +383,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                         break
 
             early_assigned = False
-            assignment_order = sorted(TEAM_MEMBERS, key=lambda n: team_stats[n]["weekly_hours"])
+            assignment_order = sorted(TEAM_MEMBERS, key=lambda n: (early_shifts_count[n], team_stats[n]["weekly_hours"]))
             for name in assignment_order:
                 if name not in working_today:
                     is_short = needs_short_day(name, current_date, short_days_assigned_today)
@@ -391,7 +392,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                     
                     if is_eligible_for_shift(name, current_date, shift_start_dt, shift_hours):
                         shift_end_dt = shift_start_dt + timedelta(hours=shift_hours)
-                        master_schedule_data.append({"Date_Display": display_date, "Staff Member": name, "Shift": f"{shift_start_dt.strftime('%H')} - {shift_end_dt.strftime('%H')}", "Color_Key": "BASELINE"})
+                        master_schedule_data.append({"Date_Display": display_date, "Staff Member": name, "Shift": f"{shift_start_dt.strftime('%H')}:00 - {shift_end_dt.strftime('%H')}:00", "Color_Key": "BASELINE"})
                         team_stats[name]["weekly_hours"] += shift_hours
                         team_stats[name]["days_worked_this_week"] += 1
                         if is_short: 
@@ -402,6 +403,8 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                         else: team_stats[name]["consecutive_days"] = 1
                         team_stats[name]["last_worked_date"] = current_date
                         working_today.add(name)
+                        
+                        early_shifts_count[name] += 1 # <-- WE RECORD THAT THEY TOOK THE SHIFT HERE
                         early_assigned = True
                         break
 
