@@ -341,3 +341,27 @@ if st.session_state.role == 'admin':
                     conn.close()
                     st.success("Schedule Approved and Locked!")
                     st.rerun()
+
+        # ==========================================
+        # NEW FEATURE: MANUAL EDITS UPLOAD
+        # ==========================================
+        if not is_approved:
+            st.markdown("---")
+            st.markdown("### 🔀 Manual Adjustments")
+            st.info("Need to tweak a shift? Download the Draft above, edit it in Excel, and upload the final version here before Approving.")
+            
+            uploaded_edit = st.file_uploader("Upload Edited Matrix (.xlsx)", type=["xlsx"])
+            if uploaded_edit is not None:
+                if st.button("💾 Save Edited Matrix to Cloud"):
+                    edit_bytes = uploaded_edit.read()
+                    conn = get_db_connection()
+                    c = conn.cursor()
+                    c.execute("""
+                        UPDATE schedule_status 
+                        SET excel_file = %s 
+                        WHERE target_year=%s AND target_month=%s
+                    """, (psycopg2.Binary(edit_bytes), selected_year, selected_month))
+                    conn.commit()
+                    conn.close()
+                    st.success("Edited Matrix saved to the database! You can now review the preview above or Approve it.")
+                    st.rerun()
