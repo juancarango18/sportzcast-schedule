@@ -367,7 +367,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                     
                     if is_eligible_for_shift(name, current_date, shift_start_dt, shift_hours):
                         shift_end_dt = shift_start_dt + timedelta(hours=shift_hours)
-                        master_schedule_data.append({"Date_Display": display_date, "Staff Member": name, "Shift": f"{shift_start_dt.strftime('%H')} - {shift_end_dt.strftime('%H')}", "Color_Key": "LATE_GAME"})
+                        master_schedule_data.append({"Date_Display": display_date, "Staff Member": name, "Shift": f"{shift_start_dt.strftime('%H')}:00 - {shift_end_dt.strftime('%H')}:00", "Color_Key": "LATE_GAME"})
                         team_stats[name]["weekly_hours"] += shift_hours
                         team_stats[name]["days_worked_this_week"] += 1
                         team_stats[name]["night_shifts_this_month"] += 1
@@ -422,7 +422,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                         shift_end_dt = shift_start_dt + timedelta(hours=shift_hours)
                         
                         if is_eligible_for_shift(name, current_date, shift_start_dt, shift_hours):
-                            master_schedule_data.append({"Date_Display": display_date, "Staff Member": name, "Shift": f"{shift_start_dt.strftime('%H')} - {shift_end_dt.strftime('%H')}", "Color_Key": "BASELINE"})
+                            master_schedule_data.append({"Date_Display": display_date, "Staff Member": name, "Shift": f"{shift_start_dt.strftime('%H')}:00 - {shift_end_dt.strftime('%H')}:00", "Color_Key": "BASELINE"})
                             team_stats[name]["weekly_hours"] += shift_hours
                             team_stats[name]["days_worked_this_week"] += 1
                             if is_short: 
@@ -445,7 +445,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                         shift_end_dt = shift_start_dt + timedelta(hours=shift_hours)
                         
                         if is_eligible_for_shift(name, current_date, shift_start_dt, shift_hours):
-                            master_schedule_data.append({"Date_Display": display_date, "Staff Member": name, "Shift": f"{shift_start_dt.strftime('%H')} - {shift_end_dt.strftime('%H')}", "Color_Key": "BASELINE"})
+                            master_schedule_data.append({"Date_Display": display_date, "Staff Member": name, "Shift": f"{shift_start_dt.strftime('%H')}:00 - {shift_end_dt.strftime('%H')}:00", "Color_Key": "BASELINE"})
                             team_stats[name]["weekly_hours"] += shift_hours
                             team_stats[name]["days_worked_this_week"] += 1
                             team_stats[name]["last_shift_end_time"] = shift_end_dt
@@ -459,7 +459,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
             assignment_order = sorted(TEAM_MEMBERS, key=lambda n: team_stats[n]["weekly_hours"])
             for name in assignment_order:
                 if is_eligible_for_shift(name, current_date, current_date.replace(hour=9, minute=0, second=0), 9):
-                    master_schedule_data.append({"Date_Display": display_date, "Staff Member": name, "Shift": "09 - 18", "Color_Key": "BASELINE"})
+                    master_schedule_data.append({"Date_Display": display_date, "Staff Member": name, "Shift": "09:00 - 18:00", "Color_Key": "BASELINE"})
                     team_stats[name]["weekly_hours"] += 9
                     team_stats[name]["days_worked_this_week"] += 1
                     team_stats[name]["last_shift_end_time"] = current_date.replace(hour=18, minute=0, second=0)
