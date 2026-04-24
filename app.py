@@ -265,14 +265,9 @@ if st.session_state.role == 'user':
 # ==========================================
 # ==========================================
 if st.session_state.role == "admin":
-        #try:
-            st.image("logo2.png", width=200) 
-        #except:
-            #pass
-            
-        st.title("🗓️ Sportzcast Scheduler")
+    st.image("logo2.png", width=200)
+    st.title("🗓️ Sportzcast Scheduler")
         
-
 if st.session_state.role == 'admin':
     
     all_ptos, all_rdos = get_all_requests(selected_year, selected_month)
