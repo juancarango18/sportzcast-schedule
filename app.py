@@ -347,112 +347,112 @@ if st.session_state.role == 'admin':
         # ==========================================
         if not is_approved:
             st.markdown("---")
-            if db_file_bytes:
-            st.markdown(f"### 📊 {calendar.month_name[selected_month]} Schedule Editor")
-            try:
-                import io
-                import openpyxl
-                from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    if db_file_bytes:
+        st.markdown(f"### 📊 {calendar.month_name[selected_month]} Schedule Editor")
+        try:
+            import io
+            import openpyxl
+            from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+            
+            # Read the current file from the Cloud
+            preview_df = pd.read_excel(io.BytesIO(db_file_bytes), index_col=0).fillna("") 
+            
+            if not is_approved:
+                st.info("💡 **LIVE EDITOR:** Double-click any cell below to change a shift. Click 'Save Live Edits' when you are done.")
                 
-                # Read the current file from the Cloud
-                preview_df = pd.read_excel(io.BytesIO(db_file_bytes), index_col=0).fillna("") 
+                # THIS IS THE MAGIC STREAMLIT EDITOR!
+                edited_df = st.data_editor(preview_df, use_container_width=True)
                 
-                if not is_approved:
-                    st.info("💡 **LIVE EDITOR:** Double-click any cell below to change a shift. Click 'Save Live Edits' when you are done.")
-                    
-                    # THIS IS THE MAGIC STREAMLIT EDITOR!
-                    edited_df = st.data_editor(preview_df, use_container_width=True)
-                    
-                    col_save, col_approve, col_down = st.columns(3)
-                    
-                    with col_save:
-                        if st.button("💾 Save Live Edits", type="primary", use_container_width=True):
-                            # 1. Convert edited data back to Excel in memory
-                            output = io.BytesIO()
-                            edited_df.to_excel(output, index=True)
-                            output.seek(0)
+                col_save, col_approve, col_down = st.columns(3)
+                
+                with col_save:
+                    if st.button("💾 Save Live Edits", type="primary", use_container_width=True):
+                        # 1. Convert edited data back to Excel in memory
+                        output = io.BytesIO()
+                        edited_df.to_excel(output, index=True)
+                        output.seek(0)
+                        
+                        # 2. Re-paint the Excel colors so it looks pretty!
+                        wb = openpyxl.load_workbook(output)
+                        ws = wb.active
+                        
+                        MagentaFill = PatternFill(start_color='FF00FF', end_color='FF00FF', fill_type='solid')
+                        BlackFill = PatternFill(start_color='000000', end_color='000000', fill_type='solid') 
+                        OrangeFill = PatternFill(start_color='FF9900', end_color='FF9900', fill_type='solid') 
+                        CyanFill = PatternFill(start_color='00FFFF', end_color='00FFFF', fill_type='solid') 
+
+                        ws.row_dimensions[1].height = 25 
+                        for cell in ws[1]:
+                            cell.fill = OrangeFill
+                            cell.font = Font(bold=True, color='FFFFFF')
+                            cell.alignment = Alignment(horizontal='center', vertical='center')
+                            cell.border = Border(top=Side(border_style="thin"), left=Side(border_style="thin"), right=Side(border_style="thin"), bottom=Side(border_style="thin"))
                             
-                            # 2. Re-paint the Excel colors so it looks pretty!
-                            wb = openpyxl.load_workbook(output)
-                            ws = wb.active
+                        ws.column_dimensions['A'].width = 25 
+                        for col in ws.iter_cols(min_col=2, max_col=ws.max_column):
+                            ws.column_dimensions[col[0].column_letter].width = 10 
                             
-                            MagentaFill = PatternFill(start_color='FF00FF', end_color='FF00FF', fill_type='solid')
-                            BlackFill = PatternFill(start_color='000000', end_color='000000', fill_type='solid') 
-                            OrangeFill = PatternFill(start_color='FF9900', end_color='FF9900', fill_type='solid') 
-                            CyanFill = PatternFill(start_color='00FFFF', end_color='00FFFF', fill_type='solid') 
-    
-                            ws.row_dimensions[1].height = 25 
-                            for cell in ws[1]:
-                                cell.fill = OrangeFill
-                                cell.font = Font(bold=True, color='FFFFFF')
+                        for row_num in range(2, ws.max_row + 1):
+                            for col_num in range(2, ws.max_column + 1):
+                                cell = ws.cell(row=row_num, column=col_num)
+                                cell_val = str(cell.value).strip() if cell.value else ""
+                                
+                                if cell_val == "" or cell_val == 'OFF':
+                                    cell.fill = BlackFill
+                                    cell.font = Font(color='FFFFFF')
+                                    cell.value = "" 
+                                elif cell_val == 'PTO' or cell_val == 'HOLIDAY':
+                                    cell.fill = CyanFill 
+                                    cell.font = Font(bold=True, color='000000')
+                                else:
+                                    cell.fill = MagentaFill # Default color for working shifts
+                                    
                                 cell.alignment = Alignment(horizontal='center', vertical='center')
                                 cell.border = Border(top=Side(border_style="thin"), left=Side(border_style="thin"), right=Side(border_style="thin"), bottom=Side(border_style="thin"))
-                                
-                            ws.column_dimensions['A'].width = 25 
-                            for col in ws.iter_cols(min_col=2, max_col=ws.max_column):
-                                ws.column_dimensions[col[0].column_letter].width = 10 
-                                
-                            for row_num in range(2, ws.max_row + 1):
-                                for col_num in range(2, ws.max_column + 1):
-                                    cell = ws.cell(row=row_num, column=col_num)
-                                    cell_val = str(cell.value).strip() if cell.value else ""
-                                    
-                                    if cell_val == "" or cell_val == 'OFF':
-                                        cell.fill = BlackFill
-                                        cell.font = Font(color='FFFFFF')
-                                        cell.value = "" 
-                                    elif cell_val == 'PTO' or cell_val == 'HOLIDAY':
-                                        cell.fill = CyanFill 
-                                        cell.font = Font(bold=True, color='000000')
-                                    else:
-                                        cell.fill = MagentaFill # Default color for working shifts
-                                        
-                                    cell.alignment = Alignment(horizontal='center', vertical='center')
-                                    cell.border = Border(top=Side(border_style="thin"), left=Side(border_style="thin"), right=Side(border_style="thin"), bottom=Side(border_style="thin"))
-                            
-                            # 3. Save the repainted file back to Supabase
-                            final_output = io.BytesIO()
-                            wb.save(final_output)
-                            final_bytes = final_output.getvalue()
-                            
-                            conn = get_db_connection()
-                            c = conn.cursor()
-                            c.execute("UPDATE schedule_status SET excel_file=%s WHERE target_year=%s AND target_month=%s", (psycopg2.Binary(final_bytes), selected_year, selected_month))
-                            conn.commit()
-                            conn.close()
-                            st.success("Edits saved successfully!")
-                            st.rerun()
-    
-                    with col_approve:
-                        if st.button("✅ Approve & Lock Schedule", use_container_width=True):
-                            conn = get_db_connection()
-                            c = conn.cursor()
-                            c.execute("UPDATE schedule_status SET is_approved=TRUE WHERE target_year=%s AND target_month=%s", (selected_year, selected_month))
-                            conn.commit()
-                            conn.close()
-                            st.success("Schedule Approved and Locked!")
-                            st.rerun()
-                            
-                    with col_down:
-                        st.download_button(
-                            label="📥 Download Draft", 
-                            data=db_file_bytes, 
-                            file_name=f"DRAFT_{calendar.month_name[selected_month]}_{selected_year}_Matrix.xlsx", 
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True
-                        )
-                
-                # If the schedule IS approved, just show the locked table (no editing)
-                else:
-                    st.dataframe(preview_df, use_container_width=True)
+                        
+                        # 3. Save the repainted file back to Supabase
+                        final_output = io.BytesIO()
+                        wb.save(final_output)
+                        final_bytes = final_output.getvalue()
+                        
+                        conn = get_db_connection()
+                        c = conn.cursor()
+                        c.execute("UPDATE schedule_status SET excel_file=%s WHERE target_year=%s AND target_month=%s", (psycopg2.Binary(final_bytes), selected_year, selected_month))
+                        conn.commit()
+                        conn.close()
+                        st.success("Edits saved successfully!")
+                        st.rerun()
+
+                with col_approve:
+                    if st.button("✅ Approve & Lock Schedule", use_container_width=True):
+                        conn = get_db_connection()
+                        c = conn.cursor()
+                        c.execute("UPDATE schedule_status SET is_approved=TRUE WHERE target_year=%s AND target_month=%s", (selected_year, selected_month))
+                        conn.commit()
+                        conn.close()
+                        st.success("Schedule Approved and Locked!")
+                        st.rerun()
+                        
+                with col_down:
                     st.download_button(
-                        label="📥 Download Approved Matrix", 
+                        label="📥 Download Draft", 
                         data=db_file_bytes, 
-                        file_name=f"APPROVED_{calendar.month_name[selected_month]}_{selected_year}_Matrix.xlsx", 
+                        file_name=f"DRAFT_{calendar.month_name[selected_month]}_{selected_year}_Matrix.xlsx", 
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
-                        type="primary"
+                        use_container_width=True
                     )
-                    
-            except Exception as e:
-                st.error("Could not load preview.")
+            
+            # If the schedule IS approved, just show the locked table (no editing)
+            else:
+                st.dataframe(preview_df, use_container_width=True)
+                st.download_button(
+                    label="📥 Download Approved Matrix", 
+                    data=db_file_bytes, 
+                    file_name=f"APPROVED_{calendar.month_name[selected_month]}_{selected_year}_Matrix.xlsx", 
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    type="primary"
+                )
+                
+        except Exception as e:
+            st.error("Could not load preview.")
