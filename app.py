@@ -99,7 +99,7 @@ def logout():
     st.session_state.logged_in = False
     st.session_state.username = ''
     st.session_state.role = ''
-    st.rerun()
+    #st.rerun()
 
 # ==========================================
 # UI: LOGIN & SIGN-UP SCREEN
