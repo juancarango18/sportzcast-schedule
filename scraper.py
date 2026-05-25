@@ -56,6 +56,7 @@ WNBA_VENUES = {
 }
 
 CFL_VENUES = {
+    # Full Names
     "BC Lions": "BC Place",
     "Calgary Stampeders": "McMahon Stadium",
     "Edmonton Elks": "Commonwealth Stadium",
@@ -64,7 +65,18 @@ CFL_VENUES = {
     "Hamilton Tiger-Cats": "Tim Hortons Field",
     "Toronto Argonauts": "BMO Field",
     "Ottawa Redblacks": "TD Place Stadium",
-    "Montreal Alouettes": "Percival Molson Memorial Stadium"
+    "Montreal Alouettes": "Percival Molson Memorial Stadium",
+    
+    # Initials / Abbreviations
+    "BC": "BC Place",
+    "CGY": "McMahon Stadium",
+    "EDM": "Commonwealth Stadium",
+    "SSK": "Mosaic Stadium",
+    "WPG": "Princess Auto Stadium",
+    "HAM": "Tim Hortons Field",
+    "TOR": "BMO Field",
+    "OTT": "TD Place Stadium",
+    "MTL": "Percival Molson Memorial Stadium"
 }
 
 scraped_games = []
@@ -118,8 +130,8 @@ def scrape_wnba():
                     card = card.parent
                 
                 if len(teams) >= 2:
-                    home_team = teams[0].text.strip()
-                    away_team = teams[1].text.strip()
+                    away_team = teams[0].text.strip()
+                    home_team = teams[1].text.strip()
                     
                     # Look up the venue safely, default to TBD if team is unknown
                     venue = WNBA_VENUES.get(home_team, "TBD")
@@ -168,10 +180,13 @@ def scrape_cfl():
                 if matchup_div:
                     visitor_span = matchup_div.find('span', class_='visitor').find('span', class_='text')
                     host_span = matchup_div.find('span', class_='host').find('span', class_='text')
-                    away_team = visitor_span.text.strip() if visitor_span else "Away"
-                    home_team = host_span.text.strip() if host_span else "Home"
+                    
+                    # --- SWAPPED FOR CFL: 1st team is Home, 2nd team is Away ---
+                    home_team = visitor_span.text.strip() if visitor_span else "Home"
+                    away_team = host_span.text.strip() if host_span else "Away"
+                    # -----------------------------------------------------------
 
-                    # Look up the venue safely
+                    # Look up the venue safely using the corrected Home team abbreviation
                     venue = CFL_VENUES.get(home_team, "TBD")
 
                     scraped_games.append({
@@ -196,5 +211,6 @@ if scraped_games:
     df = df.sort_values(by=['Date', 'Coverage_Start'])
     df.to_csv("games_schedule.csv", index=False)
     print("✅ SUCCESS! Live data saved.")
+
 
 
