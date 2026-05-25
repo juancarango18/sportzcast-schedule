@@ -503,3 +503,111 @@ if st.session_state.role == 'admin':
                 
         except Exception as e:
             st.error("Could not load preview.")
+
+        # ==========================================
+        # SMART GAME AUTO-ASSIGNER
+        # ==========================================
+        st.markdown("---")
+        st.markdown("### 🎮 Smart Game Auto-Assigner")
+        st.info("This tool looks at your generated Schedule Matrix and the scraped games, then automatically assigns the best person based on their shift!")
+        
+        if db_file_bytes:
+            if not os.path.exists("games_schedule.csv"):
+                st.warning("⚠️ No games data found! Please go back to Step 1 and run the Web Scraper.")
+            else:
+                # We use session_state so the table doesn't disappear when you edit a cell
+                if "assignments_df" not in st.session_state:
+                    if st.button("🤖 Auto-Assign Games", type="primary", use_container_width=True):
+                        with st.spinner("Calculating optimal assignments..."):
+                            games_df = pd.read_csv("games_schedule.csv")
+                            matrix_df = pd.read_excel(io.BytesIO(db_file_bytes), index_col=0).fillna("")
+                            
+                            assignment_rows = []
+                            daily_workload = {}
+                            
+                            for _, game in games_df.iterrows():
+                                g_date_str = game['Date'] 
+                                g_start_str = str(game['Coverage_Start']).strip()
+                                g_end_str = str(game['Coverage_End']).strip()
+                                
+                                g_date_obj = datetime.strptime(g_date_str, "%Y-%m-%d")
+                                matrix_col = f"{g_date_obj.strftime('%a')} {g_date_obj.day}"
+                                
+                                g_start_dt = datetime.strptime(f"{g_date_str} {g_start_str}", "%Y-%m-%d %H:%M")
+                                g_end_dt = datetime.strptime(f"{g_date_str} {g_end_str}", "%Y-%m-%d %H:%M")
+                                if g_end_dt < g_start_dt:
+                                    g_end_dt += timedelta(days=1) # Handles games crossing midnight
+                                
+                                assigned_person = "UNASSIGNED ⚠️"
+                                
+                                if matrix_col in matrix_df.columns:
+                                    eligible_staff = []
+                                    for staff_name, shift_str in matrix_df[matrix_col].items():
+                                        shift_str = str(shift_str).strip()
+                                        if shift_str not in ["OFF", "PTO", "HOLIDAY", ""]:
+                                            try:
+                                                s_start, s_end = shift_str.split(" - ")
+                                                shift_start_dt = datetime.strptime(f"{g_date_str} {s_start.strip()}", "%Y-%m-%d %H:%M")
+                                                shift_end_dt = datetime.strptime(f"{g_date_str} {s_end.strip()}", "%Y-%m-%d %H:%M")
+                                                if shift_end_dt < shift_start_dt:
+                                                    shift_end_dt += timedelta(days=1)
+                                                    
+                                                # Check if their shift fully covers the game duration!
+                                                if shift_start_dt <= g_start_dt and shift_end_dt >= g_end_dt:
+                                                    eligible_staff.append(staff_name)
+                                            except:
+                                                pass
+                                    
+                                    # Load balancing: Give the game to the eligible person with the fewest games today
+                                    if eligible_staff:
+                                        if g_date_str not in daily_workload:
+                                            daily_workload[g_date_str] = {s: 0 for s in matrix_df.index}
+                                        best_staff = min(eligible_staff, key=lambda s: daily_workload[g_date_str].get(s, 0))
+                                        assigned_person = best_staff
+                                        daily_workload[g_date_str][best_staff] += 1
+                                        
+                                # Safely grab Venue if it exists, otherwise leave blank
+                                venue = game.get('Venue', "")
+                                
+                                # Format exactly like your screenshot!
+                                assignment_rows.append({
+                                    "Coverage Start": g_start_dt.strftime("%m/%d/%Y %H:%M"),
+                                    "Coverage End": g_end_dt.strftime("%m/%d/%Y %H:%M"),
+                                    "Matchup": game['Matchup'],
+                                    "Event ID/League": game['Sport'],
+                                    "Venue": venue,
+                                    "Assigned Name": assigned_person,
+                                    "QA 1": "",
+                                    "QA 2": "",
+                                    "ID": ""
+                                })
+                                
+                            st.session_state.assignments_df = pd.DataFrame(assignment_rows)
+                            st.rerun()
+                
+                if "assignments_df" in st.session_state:
+                    st.success("Assignments generated! You can double-click any cell to manually override the AI before downloading.")
+                    
+                    # The interactive editor!
+                    edited_assignments = st.data_editor(st.session_state.assignments_df, use_container_width=True)
+                    
+                    # Create the downloadable Excel file
+                    output = io.BytesIO()
+                    edited_assignments.to_excel(output, index=False)
+                    output.seek(0)
+                    
+                    col_reset, col_down = st.columns(2)
+                    with col_down:
+                        st.download_button(
+                            label="📥 Download Game Assignments (.xlsx)",
+                            data=output,
+                            file_name=f"Game_Assignments_{calendar.month_name[selected_month]}_{selected_year}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            type="primary"
+                        )
+                    with col_reset:
+                        if st.button("🔄 Recalculate Assignments", use_container_width=True):
+                            del st.session_state.assignments_df
+                            st.rerun()
+
