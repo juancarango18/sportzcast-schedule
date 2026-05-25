@@ -100,7 +100,18 @@ def get_selenium_driver():
     chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument(f"user-agent={HEADERS['User-Agent']}")
     chrome_options.add_argument("--log-level=3") 
-    return webdriver.Chrome(options=chrome_options)
+    driver = webdriver.Chrome(options=chrome_options)
+    
+    # 🌍 THE TIMEZONE FIX: Force the browser into Colombia time (UTC-5)
+    # This prevents the CFL website from converting the times to UTC!
+    try:
+        driver.execute_cdp_cmd('Emulation.setTimezoneOverride', {
+            'timezoneId': 'America/Bogota'
+        })
+    except:
+        pass
+        
+    return driver
 
 def scrape_wnba():
     print(f"🏀 Loading WNBA {TARGET_YEAR} schedule...")
@@ -211,6 +222,7 @@ if scraped_games:
     df = df.sort_values(by=['Date', 'Coverage_Start'])
     df.to_csv("games_schedule.csv", index=False)
     print("✅ SUCCESS! Live data saved.")
+
 
 
 
