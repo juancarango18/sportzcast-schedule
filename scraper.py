@@ -20,7 +20,7 @@ chrome_options.add_argument("--disable-dev-shm-usage") # Overcomes limited resou
 driver = webdriver.Chrome(options=chrome_options)
 
 # ==========================================
-# 1. DYNAMIC CONFIGURATION
+# 1. DYNAMIC CONFIGURATION & MEMORY BANKS
 # ==========================================
 
 TARGET_YEAR = 2026
@@ -34,6 +34,37 @@ CFL_URL = f"https://www.cfl.ca/schedule/{TARGET_YEAR}/"
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+}
+
+# The Venue Memory Banks!
+WNBA_VENUES = {
+    "Atlanta Dream": "Gateway Center Arena",
+    "Chicago Sky": "Wintrust Arena",
+    "Connecticut Sun": "Mohegan Sun Arena",
+    "Dallas Wings": "College Park Center",
+    "Indiana Fever": "Gainbridge Fieldhouse",
+    "Las Vegas Aces": "Michelob ULTRA Arena",
+    "Los Angeles Sparks": "Crypto.com Arena",
+    "Minnesota Lynx": "Target Center",
+    "New York Liberty": "Barclays Center",
+    "Phoenix Mercury": "Footprint Center",
+    "Seattle Storm": "Climate Pledge Arena",
+    "Washington Mystics": "Entertainment & Sports Arena",
+    "Golden State Valkyries": "Chase Center",
+    "Portland Fire": "Moda Center",
+    "Toronto Tempo": "Coca-Cola Coliseum"
+}
+
+CFL_VENUES = {
+    "BC Lions": "BC Place",
+    "Calgary Stampeders": "McMahon Stadium",
+    "Edmonton Elks": "Commonwealth Stadium",
+    "Saskatchewan Roughriders": "Mosaic Stadium",
+    "Winnipeg Blue Bombers": "Princess Auto Stadium",
+    "Hamilton Tiger-Cats": "Tim Hortons Field",
+    "Toronto Argonauts": "BMO Field",
+    "Ottawa Redblacks": "TD Place Stadium",
+    "Montreal Alouettes": "Percival Molson Memorial Stadium"
 }
 
 scraped_games = []
@@ -83,10 +114,17 @@ def scrape_wnba():
                     card = card.parent
                 
                 if len(teams) >= 2:
+                    home_team = teams[0].text.strip()
+                    away_team = teams[1].text.strip()
+                    
+                    # Look up the venue safely, default to TBD if team is unknown
+                    venue = WNBA_VENUES.get(home_team, "TBD")
+                    
                     scraped_games.append({
                         "Date": date_text, "Sport": "WNBA",
-                        "Matchup": f"{teams[0].text.strip()} vs. {teams[1].text.strip()}",
-                        "Coverage_Start": start_time, "Coverage_End": ""
+                        "Matchup": f"{home_team} v {away_team}",
+                        "Coverage_Start": start_time, "Coverage_End": "",
+                        "Venue": venue
                     })
                     games_found += 1
             except Exception:
@@ -129,10 +167,14 @@ def scrape_cfl():
                     away_team = visitor_span.text.strip() if visitor_span else "Away"
                     home_team = host_span.text.strip() if host_span else "Home"
 
+                    # Look up the venue safely
+                    venue = CFL_VENUES.get(home_team, "TBD")
+
                     scraped_games.append({
                         "Date": date_text, "Sport": "CFL",
-                        "Matchup": f"{away_team} vs. {home_team}",
-                        "Coverage_Start": start_time, "Coverage_End": ""
+                        "Matchup": f"{away_team} v {home_team}",
+                        "Coverage_Start": start_time, "Coverage_End": "",
+                        "Venue": venue
                     })
                     games_found += 1
             except Exception:
