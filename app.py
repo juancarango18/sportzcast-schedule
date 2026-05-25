@@ -534,7 +534,16 @@ if st.session_state.role == 'admin':
                                 matrix_col = f"{g_date_obj.strftime('%a')} {g_date_obj.day}"
                                 
                                 g_start_dt = datetime.strptime(f"{g_date_str} {g_start_str}", "%Y-%m-%d %H:%M")
-                                g_end_dt = datetime.strptime(f"{g_date_str} {g_end_str}", "%Y-%m-%d %H:%M")
+                                
+                                # --- THE FIX: SMART END TIME CALCULATION ---
+                                if not g_end_str or g_end_str.lower() == 'nan':
+                                    # If end time is blank, add 3 hours for CFL, or 2 hours for WNBA
+                                    hours_to_add = 3 if game.get('Sport') == "CFL" else 2
+                                    g_end_dt = g_start_dt + timedelta(hours=hours_to_add)
+                                else:
+                                    g_end_dt = datetime.strptime(f"{g_date_str} {g_end_str}", "%Y-%m-%d %H:%M")
+                                # -------------------------------------------
+                                
                                 if g_end_dt < g_start_dt:
                                     g_end_dt += timedelta(days=1) # Handles games crossing midnight
                                 
@@ -610,4 +619,5 @@ if st.session_state.role == 'admin':
                         if st.button("🔄 Recalculate Assignments", use_container_width=True):
                             del st.session_state.assignments_df
                             st.rerun()
+
 
