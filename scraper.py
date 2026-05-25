@@ -47,9 +47,9 @@ WNBA_VENUES = {
     "Los Angeles Sparks": "Crypto.com Arena",
     "Minnesota Lynx": "Target Center",
     "New York Liberty": "Barclays Center",
-    "Phoenix Mercury": "Footprint Center",
+    "Phoenix Mercury": "Mortgage Matchup Center",
     "Seattle Storm": "Climate Pledge Arena",
-    "Washington Mystics": "Entertainment & Sports Arena",
+    "Washington Mystics": "CareFirst Arena",
     "Golden State Valkyries": "Chase Center",
     "Portland Fire": "Moda Center",
     "Toronto Tempo": "Coca-Cola Coliseum"
@@ -196,4 +196,5 @@ if scraped_games:
     df = df.sort_values(by=['Date', 'Coverage_Start'])
     df.to_csv("games_schedule.csv", index=False)
     print("✅ SUCCESS! Live data saved.")
+
 
