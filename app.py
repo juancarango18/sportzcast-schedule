@@ -558,7 +558,8 @@ if st.session_state.role == 'admin':
                                 assigned_person = "UNASSIGNED ⚠️"
                                 
                                 if matrix_col in matrix_df.columns:
-                                    eligible_staff = []
+                                    perfect_matches = []
+                                    partial_matches = []
                                     for staff_name, shift_str in matrix_df[matrix_col].items():
                                         shift_str = str(shift_str).strip()
                                         if shift_str not in ["OFF", "PTO", "HOLIDAY", ""]:
@@ -569,14 +570,22 @@ if st.session_state.role == 'admin':
                                                 if shift_end_dt < shift_start_dt:
                                                     shift_end_dt += timedelta(days=1)
                                                     
+                                                # PERFECT MATCH: Shift covers the entire game
                                                 if shift_start_dt <= g_start_dt and shift_end_dt >= g_end_dt:
-                                                    eligible_staff.append(staff_name)
+                                                    perfect_matches.append(staff_name)
+                                                # PARTIAL MATCH: Shift covers the start of the game (for late games)
+                                                elif shift_start_dt <= g_start_dt < shift_end_dt:
+                                                    partial_matches.append(staff_name)
                                             except:
                                                 pass
+                                    
+                                    # Prioritize perfect matches, but use partial matches as a safety net!
+                                    eligible_staff = perfect_matches if perfect_matches else partial_matches
                                     
                                     if eligible_staff:
                                         if g_date_str not in daily_workload:
                                             daily_workload[g_date_str] = {s: 0 for s in matrix_df.index}
+                                        # Balance the workload so one person doesn't get all the late games
                                         best_staff = min(eligible_staff, key=lambda s: daily_workload[g_date_str].get(s, 0))
                                         assigned_person = best_staff
                                         daily_workload[g_date_str][best_staff] += 1
@@ -626,6 +635,7 @@ if st.session_state.role == 'admin':
                         if st.button("🔄 Recalculate Assignments", use_container_width=True):
                             del st.session_state.assignments_df
                             st.rerun()
+
 
 
 
