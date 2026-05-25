@@ -527,25 +527,33 @@ if st.session_state.role == 'admin':
                             
                             for _, game in games_df.iterrows():
                                 g_date_str = game['Date'] 
+                                g_date_obj = datetime.strptime(g_date_str, "%Y-%m-%d")
+                                
+                                # --- 1. NEW: ONLY SHOW GAMES FOR THE CURRENTLY SELECTED MONTH ---
+                                if g_date_obj.month != selected_month or g_date_obj.year != selected_year:
+                                    continue
+                                # ----------------------------------------------------------------
+                                
                                 g_start_str = str(game['Coverage_Start']).strip()
                                 g_end_str = str(game['Coverage_End']).strip()
                                 
-                                g_date_obj = datetime.strptime(g_date_str, "%Y-%m-%d")
                                 matrix_col = f"{g_date_obj.strftime('%a')} {g_date_obj.day}"
                                 
                                 g_start_dt = datetime.strptime(f"{g_date_str} {g_start_str}", "%Y-%m-%d %H:%M")
                                 
-                                # --- THE FIX: SMART END TIME CALCULATION ---
                                 if not g_end_str or g_end_str.lower() == 'nan':
-                                    # If end time is blank, add 3 hours for CFL, or 2 hours for WNBA
                                     hours_to_add = 3 if game.get('Sport') == "CFL" else 2
                                     g_end_dt = g_start_dt + timedelta(hours=hours_to_add)
                                 else:
                                     g_end_dt = datetime.strptime(f"{g_date_str} {g_end_str}", "%Y-%m-%d %H:%M")
-                                # -------------------------------------------
                                 
                                 if g_end_dt < g_start_dt:
-                                    g_end_dt += timedelta(days=1) # Handles games crossing midnight
+                                    g_end_dt += timedelta(days=1)
+                                    
+                                # --- 2. NEW: CALCULATE UTC TIMES (+5 HOURS) ---
+                                utc_start_dt = g_start_dt + timedelta(hours=5)
+                                utc_end_dt = g_end_dt + timedelta(hours=5)
+                                # ----------------------------------------------
                                 
                                 assigned_person = "UNASSIGNED ⚠️"
                                 
@@ -561,13 +569,11 @@ if st.session_state.role == 'admin':
                                                 if shift_end_dt < shift_start_dt:
                                                     shift_end_dt += timedelta(days=1)
                                                     
-                                                # Check if their shift fully covers the game duration!
                                                 if shift_start_dt <= g_start_dt and shift_end_dt >= g_end_dt:
                                                     eligible_staff.append(staff_name)
                                             except:
                                                 pass
                                     
-                                    # Load balancing: Give the game to the eligible person with the fewest games today
                                     if eligible_staff:
                                         if g_date_str not in daily_workload:
                                             daily_workload[g_date_str] = {s: 0 for s in matrix_df.index}
@@ -575,13 +581,14 @@ if st.session_state.role == 'admin':
                                         assigned_person = best_staff
                                         daily_workload[g_date_str][best_staff] += 1
                                         
-                                # Safely grab Venue if it exists, otherwise leave blank
                                 venue = game.get('Venue', "")
                                 
-                                # Format exactly like your screenshot!
+                                # --- 3. NEW: OUTPUTTING THE UTC COLUMNS ---
                                 assignment_rows.append({
-                                    "Coverage Start": g_start_dt.strftime("%m/%d/%Y %H:%M"),
-                                    "Coverage End": g_end_dt.strftime("%m/%d/%Y %H:%M"),
+                                    "Coverage Start (UTC-5)": g_start_dt.strftime("%m/%d/%Y %H:%M"),
+                                    "Coverage End (UTC-5)": g_end_dt.strftime("%m/%d/%Y %H:%M"),
+                                    "Coverage Start (UTC)": utc_start_dt.strftime("%m/%d/%Y %H:%M"),
+                                    "Coverage End (UTC)": utc_end_dt.strftime("%m/%d/%Y %H:%M"),
                                     "Matchup": game['Matchup'],
                                     "Event ID/League": game['Sport'],
                                     "Venue": venue,
@@ -619,5 +626,6 @@ if st.session_state.role == 'admin':
                         if st.button("🔄 Recalculate Assignments", use_container_width=True):
                             del st.session_state.assignments_df
                             st.rerun()
+
 
 
