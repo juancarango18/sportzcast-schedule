@@ -71,10 +71,14 @@ scraped_games = []
 
 def convert_to_military_time(time_str):
     try:
-        clean_time = time_str.strip().replace('.', '').upper()
-        start_dt = datetime.strptime(clean_time, "%I:%M %p")
-        end_dt = start_dt + timedelta(hours=3)
-        return start_dt.strftime("%H:%M"), end_dt.strftime("%H:%M")
+        # This regex looks specifically for the HH:MM AM/PM pattern and ignores " ET" or "EDT"
+        match = re.search(r'(\d{1,2}:\d{2}\s*[aApP][mM])', time_str.replace('.', ''))
+        if match:
+            clean_time = match.group(1).upper()
+            start_dt = datetime.strptime(clean_time, "%I:%M %p")
+            end_dt = start_dt + timedelta(hours=3)
+            return start_dt.strftime("%H:%M"), end_dt.strftime("%H:%M")
+        return None, None
     except Exception:
         return None, None
 
@@ -192,3 +196,4 @@ if scraped_games:
     df = df.sort_values(by=['Date', 'Coverage_Start'])
     df.to_csv("games_schedule.csv", index=False)
     print("✅ SUCCESS! Live data saved.")
+
