@@ -10,6 +10,7 @@ import openpyxl
 import scheduler
 import sys
 import io
+import shutil
 from datetime import datetime, timedelta, date
 
 # ==========================================
@@ -27,8 +28,32 @@ try:
 except:
     pass # Fails safely if the logo hasn't loaded yet
 
-# ==========================================
-# PAGE CONFIGURATION
+def get_scraper_runtime_info():
+    lines = [
+        f"Python: {sys.executable}",
+        f"Working directory: {os.getcwd()}",
+        f"scraper.py present: {os.path.exists('scraper.py')}",
+        f"CHROME_BIN: {os.environ.get('CHROME_BIN', '(not set)')}",
+        f"CHROMEDRIVER_PATH: {os.environ.get('CHROMEDRIVER_PATH', '(not set)')}",
+        f"chromium in PATH: {shutil.which('chromium') or '(not found)'}",
+        f"chromedriver in PATH: {shutil.which('chromedriver') or '(not found)'}",
+    ]
+    for path in ("/usr/bin/chromium", "/usr/bin/chromedriver"):
+        lines.append(f"{path} exists: {os.path.isfile(path)}")
+    return "\n".join(lines)
+
+def show_scraper_failure(result, extra_message=None):
+    st.error("Web scraper failed — games_schedule.csv was not created.")
+    if extra_message:
+        st.warning(extra_message)
+    st.markdown(f"**Process exit code:** `{result.returncode}`")
+    with st.expander("Runtime environment (app container)", expanded=False):
+        st.code(get_scraper_runtime_info())
+    with st.expander("Scraper output (stdout)", expanded=True):
+        st.code(result.stdout or "(empty)")
+    with st.expander("Scraper errors (stderr)", expanded=bool(result.stderr.strip())):
+        st.code(result.stderr or "(empty)")
+
 # ==========================================
 st.set_page_config(page_title="Sports Scheduler Pro", page_icon="🗓️", layout="wide")
 
@@ -314,21 +339,41 @@ if st.session_state.role == 'admin':
     with col1:
         st.subheader("Step 1: Get Live Games")
         if st.button("🚀 Run Web Scraper", use_container_width=True, disabled=is_approved):
+            scraper_result = None
             with st.spinner("Scraping live data..."):
-                ui_data = {"TARGET_YEAR": selected_year, "TARGET_MONTH": selected_month}
-                with open("ui_inputs.json", "w") as f:
-                    json.dump(ui_data, f)
-                
-                # THE FIX: using sys.executable forces it to use the correct Cloud Python!
-                import sys
-                result = subprocess.run([sys.executable, "scraper.py"], capture_output=True, text=True)
-                
-            # Check if it actually worked
+                if not os.path.exists("scraper.py"):
+                    scraper_result = subprocess.CompletedProcess(
+                        args=[sys.executable, "scraper.py"],
+                        returncode=127,
+                        stdout="",
+                        stderr="scraper.py not found in working directory",
+                    )
+                else:
+                    ui_data = {"TARGET_YEAR": selected_year, "TARGET_MONTH": selected_month}
+                    with open("ui_inputs.json", "w") as f:
+                        json.dump(ui_data, f)
+                    try:
+                        scraper_result = subprocess.run(
+                            [sys.executable, "scraper.py"],
+                            capture_output=True,
+                            text=True,
+                            timeout=600,
+                        )
+                    except subprocess.TimeoutExpired as e:
+                        scraper_result = subprocess.CompletedProcess(
+                            args=[sys.executable, "scraper.py"],
+                            returncode=124,
+                            stdout=e.stdout or "",
+                            stderr=(e.stderr or "") + "\nScraper exceeded 600s timeout.",
+                        )
+
             if os.path.exists("games_schedule.csv"):
                 st.success("Games successfully scraped!")
+                if scraper_result and scraper_result.stdout.strip():
+                    with st.expander("Scraper log"):
+                        st.code(scraper_result.stdout)
             else:
-                st.error("🚨 The scraper crashed in the background! Here is the error:")
-                st.code(result.stderr)
+                show_scraper_failure(scraper_result or subprocess.CompletedProcess([], 1, "", ""))
 
     with col2:
         st.subheader("Step 2: Generate Schedule")

@@ -6,18 +6,37 @@ import re
 import time
 import os
 import json
+import sys
+import shutil
+import traceback
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 
-# Setup Chrome options for the Cloud
-chrome_options = Options()
-chrome_options.add_argument("--headless") # Runs Chrome in invisible mode
-chrome_options.add_argument("--no-sandbox") # Bypasses OS security model
-chrome_options.add_argument("--disable-dev-shm-usage") # Overcomes limited resource problems
+def log(message):
+    print(message, flush=True)
 
-# Initialize the driver
-driver = webdriver.Chrome(options=chrome_options)
+def log_environment():
+    log("=== Scraper environment ===")
+    log(f"  Python: {sys.executable}")
+    log(f"  CWD: {os.getcwd()}")
+    for var in ("CHROME_BIN", "CHROMEDRIVER_PATH", "PATH"):
+        value = os.environ.get(var, "(not set)")
+        if var == "PATH" and value != "(not set)":
+            value = value[:200] + ("..." if len(value) > 200 else "")
+        log(f"  {var}={value}")
+    for label, path in [
+        ("CHROME_BIN", os.environ.get("CHROME_BIN", "")),
+        ("CHROMEDRIVER_PATH", os.environ.get("CHROMEDRIVER_PATH", "")),
+        ("/usr/bin/chromium", "/usr/bin/chromium"),
+        ("/usr/bin/chromium-browser", "/usr/bin/chromium-browser"),
+        ("/usr/bin/chromedriver", "/usr/bin/chromedriver"),
+    ]:
+        if path:
+            log(f"  {label} exists: {os.path.isfile(path)} ({path})")
+    log(f"  shutil.which('chromium'): {shutil.which('chromium')}")
+    log(f"  shutil.which('chromedriver'): {shutil.which('chromedriver')}")
 
 # ==========================================
 # 1. DYNAMIC CONFIGURATION & MEMORY BANKS
@@ -96,57 +115,80 @@ def convert_to_military_time(time_str):
 
 def get_selenium_driver():
     chrome_options = Options()
-    chrome_options.add_argument("--headless=new") 
+    chrome_options.add_argument("--headless=new")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument(f"user-agent={HEADERS['User-Agent']}")
-    chrome_options.add_argument("--log-level=3") 
-    driver = webdriver.Chrome(options=chrome_options)
-    
-    # 🌍 THE TIMEZONE FIX: Force the browser into Colombia time (UTC-5)
-    # This prevents the CFL website from converting the times to UTC!
+    chrome_options.add_argument("--log-level=3")
+
+    chrome_bin = os.environ.get("CHROME_BIN") or shutil.which("chromium") or "/usr/bin/chromium"
+    if chrome_bin and os.path.isfile(chrome_bin):
+        chrome_options.binary_location = chrome_bin
+        log(f"  Using Chrome binary: {chrome_bin}")
+    else:
+        log(f"  WARNING: Chrome binary not found (tried CHROME_BIN, PATH, /usr/bin/chromium)")
+
+    driver_path = os.environ.get("CHROMEDRIVER_PATH") or shutil.which("chromedriver") or "/usr/bin/chromedriver"
+    if driver_path and os.path.isfile(driver_path):
+        log(f"  Using ChromeDriver: {driver_path}")
+        service = Service(executable_path=driver_path)
+    else:
+        log(f"  WARNING: ChromeDriver not found — letting Selenium auto-detect")
+        service = Service()
+
+    try:
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+    except Exception:
+        log("  FAILED to start Chrome/WebDriver:")
+        log(traceback.format_exc())
+        raise
+
+    # Force the browser into Colombia time (UTC-5) for CFL schedule pages.
     try:
         driver.execute_cdp_cmd('Emulation.setTimezoneOverride', {
             'timezoneId': 'America/Bogota'
         })
-    except:
-        pass
-        
+    except Exception as e:
+        log(f"  WARNING: could not set timezone override: {e}")
+
     return driver
 
 def scrape_wnba():
-    print(f"🏀 Loading WNBA {TARGET_YEAR} schedule...")
+    log(f"🏀 Loading WNBA {TARGET_YEAR} schedule from {WNBA_URL} ...")
+    driver = None
     try:
         driver = get_selenium_driver()
         driver.get(WNBA_URL)
-        time.sleep(5) 
+        time.sleep(5)
         soup = BeautifulSoup(driver.page_source, 'html.parser')
-        driver.quit() 
-        
+
         time_tags = soup.find_all('time', datetime=True)
+        log(f"  Found {len(time_tags)} <time> elements on page")
         games_found = 0
         for time_tag in time_tags:
             try:
                 dt_str = time_tag['datetime']
                 utc_time = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%SZ")
-                local_time = utc_time - timedelta(hours=5) 
-                
+                local_time = utc_time - timedelta(hours=5)
+
                 date_text = local_time.strftime("%Y-%m-%d")
                 start_time = local_time.strftime("%H:%M")
-                
+
                 card = time_tag.parent
                 teams = []
                 while card:
                     teams = card.find_all('p', class_=re.compile(r'_TeamName__name'))
-                    if len(teams) >= 2: break 
+                    if len(teams) >= 2:
+                        break
                     card = card.parent
-                
+
                 if len(teams) >= 2:
                     away_team = teams[0].text.strip()
                     home_team = teams[1].text.strip()
-                    
-                    # Look up the venue safely, default to TBD if team is unknown
+
                     venue = WNBA_VENUES.get(home_team, "TBD")
-                    
+
                     scraped_games.append({
                         "Date": date_text, "Sport": "WNBA",
                         "Matchup": f"{home_team} v {away_team}",
@@ -156,48 +198,53 @@ def scrape_wnba():
                     games_found += 1
             except Exception:
                 continue
-        print(f"  ✅ Extracted {games_found} WNBA games!")
+        log(f"  ✅ Extracted {games_found} WNBA games")
     except Exception as e:
-        print(f"  ❌ Error on WNBA: {e}")
+        log(f"  ❌ WNBA scrape failed: {e}")
+        log(traceback.format_exc())
+        raise
+    finally:
+        if driver:
+            driver.quit()
 
 def scrape_cfl():
-    print(f"🏈 Loading CFL {TARGET_YEAR} schedule...")
+    log(f"🏈 Loading CFL {TARGET_YEAR} schedule from {CFL_URL} ...")
+    driver = None
     try:
         driver = get_selenium_driver()
         driver.get(CFL_URL)
-        time.sleep(5) 
+        time.sleep(5)
         soup = BeautifulSoup(driver.page_source, 'html.parser')
-        driver.quit()
-        
+
         date_time_divs = soup.find_all('div', class_='date-time')
+        log(f"  Found {len(date_time_divs)} date-time blocks on page")
         games_found = 0
         for dt_div in date_time_divs:
             try:
                 date_span = dt_div.find('span', class_='date')
                 time_span = dt_div.find('span', class_='time')
-                if not date_span or not time_span: continue
+                if not date_span or not time_span:
+                    continue
 
                 raw_date = date_span.text.strip()
                 clean_date_str = f"{raw_date} {TARGET_YEAR}"
                 date_obj = datetime.strptime(clean_date_str, "%a %b %d %Y")
                 date_text = date_obj.strftime("%Y-%m-%d")
 
-                raw_time = time_span.text.strip() 
+                raw_time = time_span.text.strip()
                 clean_time = raw_time.split('-')[0].split('+')[0].strip()
                 start_time, end_time = convert_to_military_time(clean_time)
-                if not start_time: continue
+                if not start_time:
+                    continue
 
                 matchup_div = dt_div.parent.find('div', class_='matchup')
                 if matchup_div:
                     visitor_span = matchup_div.find('span', class_='visitor').find('span', class_='text')
                     host_span = matchup_div.find('span', class_='host').find('span', class_='text')
-                    
-                    # --- SWAPPED FOR CFL: 1st team is Home, 2nd team is Away ---
+
                     home_team = visitor_span.text.strip() if visitor_span else "Home"
                     away_team = host_span.text.strip() if host_span else "Away"
-                    # -----------------------------------------------------------
 
-                    # Look up the venue safely using the corrected Home team abbreviation
                     venue = CFL_VENUES.get(home_team, "TBD")
 
                     scraped_games.append({
@@ -209,20 +256,33 @@ def scrape_cfl():
                     games_found += 1
             except Exception:
                 continue
-        print(f"  ✅ Extracted {games_found} CFL games!")
+        log(f"  ✅ Extracted {games_found} CFL games")
     except Exception as e:
-        print(f"  ❌ Error on CFL: {e}")
+        log(f"  ❌ CFL scrape failed: {e}")
+        log(traceback.format_exc())
+        raise
+    finally:
+        if driver:
+            driver.quit()
 
-print("🚀 Starting Web Scraper...")
-scrape_wnba()
-scrape_cfl()
+def main():
+    log("🚀 Starting web scraper")
+    log_environment()
+    log(f"  Target year: {TARGET_YEAR}")
+    scrape_wnba()
+    scrape_cfl()
 
-if scraped_games:
-    df = pd.DataFrame(scraped_games)
-    df = df.sort_values(by=['Date', 'Coverage_Start'])
-    df.to_csv("games_schedule.csv", index=False)
-    print("✅ SUCCESS! Live data saved.")
+    if scraped_games:
+        df = pd.DataFrame(scraped_games)
+        df = df.sort_values(by=['Date', 'Coverage_Start'])
+        df.to_csv("games_schedule.csv", index=False)
+        log(f"✅ SUCCESS: wrote {len(scraped_games)} games to games_schedule.csv")
+        return
 
+    log("❌ FAILED: no games scraped — games_schedule.csv was not created")
+    sys.exit(1)
 
+if __name__ == "__main__":
+    main()
 
 
