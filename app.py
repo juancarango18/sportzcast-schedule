@@ -312,23 +312,9 @@ if st.session_state.role == 'admin':
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("Step 1: Get Live Games")
-        if st.button("🚀 Run Web Scraper", use_container_width=True, disabled=is_approved):
-            with st.spinner("Scraping live data..."):
-                ui_data = {"TARGET_YEAR": selected_year, "TARGET_MONTH": selected_month}
-                with open("ui_inputs.json", "w") as f:
-                    json.dump(ui_data, f)
-                
-                # THE FIX: using sys.executable forces it to use the correct Cloud Python!
-                import sys
-                result = subprocess.run([sys.executable, "scraper.py"], capture_output=True, text=True)
-                
-            # Check if it actually worked
-            if os.path.exists("games_schedule.csv"):
-                st.success("Games successfully scraped!")
-            else:
-                st.error("🚨 The scraper crashed in the background! Here is the error:")
-                st.code(result.stderr)
+        st.markdown("### 📥 Step 1: Upload Scraped Games")
+        st.info("Run the Python scraper locally on your computer, then upload the generated games_schedule.csv file here.")
+        games_file = st.file_uploader("Upload games_schedule.csv", type=["csv"])
 
     with col2:
         st.subheader("Step 2: Generate Schedule")
@@ -511,131 +497,140 @@ if st.session_state.role == 'admin':
         st.markdown("### 🎮 Smart Game Auto-Assigner")
         st.info("This tool looks at your generated Schedule Matrix and the scraped games, then automatically assigns the best person based on their shift!")
         
-        if db_file_bytes:
-            if not os.path.exists("games_schedule.csv"):
-                st.warning("⚠️ No games data found! Please go back to Step 1 and run the Web Scraper.")
-            else:
-                # We use session_state so the table doesn't disappear when you edit a cell
-                if "assignments_df" not in st.session_state:
-                    if st.button("🤖 Auto-Assign Games", type="primary", use_container_width=True):
-                        with st.spinner("Calculating optimal assignments..."):
-                            games_df = pd.read_csv("games_schedule.csv")
-                            matrix_df = pd.read_excel(io.BytesIO(db_file_bytes), index_col=0).fillna("")
+       if db_file_bytes:
+        if games_file is None:
+            st.warning("⚠️ No games data found! Please upload the games_schedule.csv file in Step 1.")
+        else:
+            # We use session_state so the table doesn't disappear when you edit a cell
+            if "assignments_df" not in st.session_state:
+                if st.button("🤖 Auto-Assign Games", type="primary", use_container_width=True):
+                    with st.spinner("Calculating optimal assignments..."):
+                        
+                        # Reset the file pointer in memory just in case, then read!
+                        games_file.seek(0)
+                        games_df = pd.read_csv(games_file)
+                        matrix_df = pd.read_excel(io.BytesIO(db_file_bytes), index_col=0).fillna("")
+                        
+                        assignment_rows = []
+                        daily_workload = {}
+                        
+                        for _, game in games_df.iterrows():
+                            g_date_str = game['Date'] 
+                            g_date_obj = datetime.strptime(g_date_str, "%Y-%m-%d")
                             
-                            assignment_rows = []
-                            daily_workload = {}
+                            # --- 1. NEW: ONLY SHOW GAMES FOR THE CURRENTLY SELECTED MONTH ---
+                            if g_date_obj.month != selected_month or g_date_obj.year != selected_year:
+                                continue
+                            # ----------------------------------------------------------------
                             
-                            for _, game in games_df.iterrows():
-                                g_date_str = game['Date'] 
-                                g_date_obj = datetime.strptime(g_date_str, "%Y-%m-%d")
-                                
-                                # --- 1. NEW: ONLY SHOW GAMES FOR THE CURRENTLY SELECTED MONTH ---
-                                if g_date_obj.month != selected_month or g_date_obj.year != selected_year:
-                                    continue
-                                # ----------------------------------------------------------------
-                                
-                                g_start_str = str(game['Coverage_Start']).strip()
-                                g_end_str = str(game['Coverage_End']).strip()
-                                
-                                matrix_col = f"{g_date_obj.strftime('%a')} {g_date_obj.day}"
-                                
-                                g_start_dt = datetime.strptime(f"{g_date_str} {g_start_str}", "%Y-%m-%d %H:%M")
-                                
-                                if not g_end_str or g_end_str.lower() == 'nan':
-                                    hours_to_add = 3 if game.get('Sport') == "CFL" else 2
-                                    g_end_dt = g_start_dt + timedelta(hours=hours_to_add)
+                            g_start_str = str(game['Coverage_Start']).strip()
+                            g_end_str = str(game['Coverage_End']).strip()
+                            
+                            matrix_col = f"{g_date_obj.strftime('%a')} {g_date_obj.day}"
+                            
+                            g_start_dt = datetime.strptime(f"{g_date_str} {g_start_str}", "%Y-%m-%d %H:%M")
+                            
+                            # --- INCORPORATED NCAA FB TIME LOGIC ---
+                            if not g_end_str or g_end_str.lower() == 'nan':
+                                if game.get('Sport') == "CFL":
+                                    hours_to_add = 3
+                                elif game.get('Sport') == "NCAA FB":
+                                    hours_to_add = 3
                                 else:
-                                    g_end_dt = datetime.strptime(f"{g_date_str} {g_end_str}", "%Y-%m-%d %H:%M")
+                                    hours_to_add = 2
+                                g_end_dt = g_start_dt + timedelta(hours=hours_to_add)
+                            else:
+                                g_end_dt = datetime.strptime(f"{g_date_str} {g_end_str}", "%Y-%m-%d %H:%M")
+                            # ---------------------------------------
+                            
+                            if g_end_dt < g_start_dt:
+                                g_end_dt += timedelta(days=1)
                                 
-                                if g_end_dt < g_start_dt:
-                                    g_end_dt += timedelta(days=1)
+                            # --- 2. NEW: CALCULATE UTC TIMES (+5 HOURS) ---
+                            utc_start_dt = g_start_dt + timedelta(hours=5)
+                            utc_end_dt = g_end_dt + timedelta(hours=5)
+                            # ----------------------------------------------
+                            
+                            assigned_person = "UNASSIGNED ⚠️"
+                            
+                            if matrix_col in matrix_df.columns:
+                                perfect_matches = []
+                                partial_matches = []
+                                for staff_name, shift_str in matrix_df[matrix_col].items():
+                                    shift_str = str(shift_str).strip()
+                                    if shift_str not in ["OFF", "PTO", "HOLIDAY", ""]:
+                                        try:
+                                            s_start, s_end = shift_str.split(" - ")
+                                            shift_start_dt = datetime.strptime(f"{g_date_str} {s_start.strip()}", "%Y-%m-%d %H:%M")
+                                            shift_end_dt = datetime.strptime(f"{g_date_str} {s_end.strip()}", "%Y-%m-%d %H:%M")
+                                            if shift_end_dt < shift_start_dt:
+                                                shift_end_dt += timedelta(days=1)
+                                                
+                                            # PERFECT MATCH: Shift covers the entire game
+                                            if shift_start_dt <= g_start_dt and shift_end_dt >= g_end_dt:
+                                                perfect_matches.append(staff_name)
+                                            # PARTIAL MATCH: Shift covers the start of the game (for late games)
+                                            elif shift_start_dt <= g_start_dt < shift_end_dt:
+                                                partial_matches.append(staff_name)
+                                        except:
+                                            pass
                                     
-                                # --- 2. NEW: CALCULATE UTC TIMES (+5 HOURS) ---
-                                utc_start_dt = g_start_dt + timedelta(hours=5)
-                                utc_end_dt = g_end_dt + timedelta(hours=5)
-                                # ----------------------------------------------
+                                # Prioritize perfect matches, but use partial matches as a safety net!
+                                eligible_staff = perfect_matches if perfect_matches else partial_matches
                                 
-                                assigned_person = "UNASSIGNED ⚠️"
-                                
-                                if matrix_col in matrix_df.columns:
-                                    perfect_matches = []
-                                    partial_matches = []
-                                    for staff_name, shift_str in matrix_df[matrix_col].items():
-                                        shift_str = str(shift_str).strip()
-                                        if shift_str not in ["OFF", "PTO", "HOLIDAY", ""]:
-                                            try:
-                                                s_start, s_end = shift_str.split(" - ")
-                                                shift_start_dt = datetime.strptime(f"{g_date_str} {s_start.strip()}", "%Y-%m-%d %H:%M")
-                                                shift_end_dt = datetime.strptime(f"{g_date_str} {s_end.strip()}", "%Y-%m-%d %H:%M")
-                                                if shift_end_dt < shift_start_dt:
-                                                    shift_end_dt += timedelta(days=1)
-                                                    
-                                                # PERFECT MATCH: Shift covers the entire game
-                                                if shift_start_dt <= g_start_dt and shift_end_dt >= g_end_dt:
-                                                    perfect_matches.append(staff_name)
-                                                # PARTIAL MATCH: Shift covers the start of the game (for late games)
-                                                elif shift_start_dt <= g_start_dt < shift_end_dt:
-                                                    partial_matches.append(staff_name)
-                                            except:
-                                                pass
+                                if eligible_staff:
+                                    if g_date_str not in daily_workload:
+                                        daily_workload[g_date_str] = {s: 0 for s in matrix_df.index}
+                                    # Balance the workload so one person doesn't get all the late games
+                                    best_staff = min(eligible_staff, key=lambda s: daily_workload[g_date_str].get(s, 0))
+                                    assigned_person = best_staff
+                                    daily_workload[g_date_str][best_staff] += 1
                                     
-                                    # Prioritize perfect matches, but use partial matches as a safety net!
-                                    eligible_staff = perfect_matches if perfect_matches else partial_matches
-                                    
-                                    if eligible_staff:
-                                        if g_date_str not in daily_workload:
-                                            daily_workload[g_date_str] = {s: 0 for s in matrix_df.index}
-                                        # Balance the workload so one person doesn't get all the late games
-                                        best_staff = min(eligible_staff, key=lambda s: daily_workload[g_date_str].get(s, 0))
-                                        assigned_person = best_staff
-                                        daily_workload[g_date_str][best_staff] += 1
-                                        
-                                venue = game.get('Venue', "")
-                                
-                                # --- 3. NEW: OUTPUTTING THE UTC COLUMNS ---
-                                assignment_rows.append({
-                                    "Coverage Start (UTC-5)": g_start_dt.strftime("%m/%d/%Y %H:%M"),
-                                    "Coverage End (UTC-5)": g_end_dt.strftime("%m/%d/%Y %H:%M"),
-                                    "Coverage Start (UTC)": utc_start_dt.strftime("%m/%d/%Y %H:%M"),
-                                    "Coverage End (UTC)": utc_end_dt.strftime("%m/%d/%Y %H:%M"),
-                                    "Matchup": game['Matchup'],
-                                    "Event ID/League": game['Sport'],
-                                    "Venue": venue,
-                                    "Assigned Name": assigned_person,
-                                    "QA 1": "",
-                                    "QA 2": "",
-                                    "ID": ""
-                                })
-                                
-                            st.session_state.assignments_df = pd.DataFrame(assignment_rows)
-                            st.rerun()
+                            venue = game.get('Venue', "")
+                            
+                            # --- 3. NEW: OUTPUTTING THE UTC COLUMNS ---
+                            assignment_rows.append({
+                                "Coverage Start (UTC-5)": g_start_dt.strftime("%m/%d/%Y %H:%M"),
+                                "Coverage End (UTC-5)": g_end_dt.strftime("%m/%d/%Y %H:%M"),
+                                "Coverage Start (UTC)": utc_start_dt.strftime("%m/%d/%Y %H:%M"),
+                                "Coverage End (UTC)": utc_end_dt.strftime("%m/%d/%Y %H:%M"),
+                                "Matchup": game['Matchup'],
+                                "Event ID/League": game['Sport'],
+                                "Venue": venue,
+                                "Assigned Name": assigned_person,
+                                "QA 1": "",
+                                "QA 2": "",
+                                "ID": ""
+                            })
+                            
+                        st.session_state.assignments_df = pd.DataFrame(assignment_rows)
+                        st.rerun()
+            
+            if "assignments_df" in st.session_state:
+                st.success("Assignments generated! You can double-click any cell to manually override the AI before downloading.")
                 
-                if "assignments_df" in st.session_state:
-                    st.success("Assignments generated! You can double-click any cell to manually override the AI before downloading.")
-                    
-                    # The interactive editor!
-                    edited_assignments = st.data_editor(st.session_state.assignments_df, use_container_width=True)
-                    
-                    # Create the downloadable Excel file
-                    output = io.BytesIO()
-                    edited_assignments.to_excel(output, index=False)
-                    output.seek(0)
-                    
-                    col_reset, col_down = st.columns(2)
-                    with col_down:
-                        st.download_button(
-                            label="📥 Download Game Assignments (.xlsx)",
-                            data=output,
-                            file_name=f"Game_Assignments_{calendar.month_name[selected_month]}_{selected_year}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True,
-                            type="primary"
-                        )
-                    with col_reset:
-                        if st.button("🔄 Recalculate Assignments", use_container_width=True):
-                            del st.session_state.assignments_df
-                            st.rerun()
-
+                # The interactive editor!
+                edited_assignments = st.data_editor(st.session_state.assignments_df, use_container_width=True)
+                
+                # Create the downloadable Excel file
+                output = io.BytesIO()
+                edited_assignments.to_excel(output, index=False)
+                output.seek(0)
+                
+                col_reset, col_down = st.columns(2)
+                with col_down:
+                    st.download_button(
+                        label="📥 Download Game Assignments (.xlsx)",
+                        data=output,
+                        file_name=f"Game_Assignments_{calendar.month_name[selected_month]}_{selected_year}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                        type="primary"
+                    )
+                with col_reset:
+                    if st.button("🔄 Recalculate Assignments", use_container_width=True):
+                        del st.session_state.assignments_df
+                        st.rerun()
 
 
 
