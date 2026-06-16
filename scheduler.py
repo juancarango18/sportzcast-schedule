@@ -10,7 +10,7 @@ import streamlit as st
 TEAM_MEMBERS = ["Alberto Salazar", "Camilo Buritica", "Emilio Gonzalez", "Juan Camilo Correa", "Simon Mejia", "Brayan Carlosama"]
 
 def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
-    MAX_WEEKLY_HOURS = 44
+    MAX_WEEKLY_HOURS = 42
     MIN_REST_HOURS = 12
     MAX_CONSECUTIVE_DAYS = 6
     FIXED_DAYS_OFF = {"Alberto Salazar": 1} 
@@ -27,7 +27,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
         conn = get_db_connection()
         c = conn.cursor()
         c.execute("""
-            SELECT staff_member, weekly_hours, days_worked_this_week, has_had_short_day, 
+            SELECT staff_member, weekly_hours, days_worked_this_week, short_days_this_week, 
                    last_shift_end_time, consecutive_days, last_worked_date, night_shifts_this_month 
             FROM carry_over_stats 
             WHERE target_year=%s AND target_month=%s
@@ -38,11 +38,11 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
         if rows:
             data = {}
             for r in rows:
-                name, w_h, d_w, h_h_s, l_s_e, c_d, l_w_d, n_s = r
+                name, w_h, d_w, s_d_w, l_s_e, c_d, l_w_d, n_s = r
                 data[name] = {
                     "weekly_hours": w_h,
                     "days_worked_this_week": d_w,
-                    "has_had_short_day": h_h_s,
+                    "short_days_this_week": s_d_w,
                     "last_shift_end_time": datetime.strptime(l_s_e, "%Y-%m-%d %H:%M:%S") if l_s_e else None,
                     "consecutive_days": c_d,
                     "last_worked_date": datetime.strptime(l_w_d, "%Y-%m-%d") if l_w_d else None,
@@ -52,15 +52,15 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                 
         elif target_year == 2026 and target_month == 5:
             return {
-                "Alberto Salazar": {"weekly_hours": 27, "days_worked_this_week": 3, "has_had_short_day": False, "last_shift_end_time": datetime(2026, 4, 30, 18, 0), "consecutive_days": 2, "last_worked_date": datetime(2026, 4, 30), "night_shifts_this_month": 0},
-                "Camilo Buritica": {"weekly_hours": 35, "days_worked_this_week": 4, "has_had_short_day": True, "last_shift_end_time": datetime(2026, 4, 30, 20, 0), "consecutive_days": 4, "last_worked_date": datetime(2026, 4, 30), "night_shifts_this_month": 0},
-                "Emilio Gonzalez": {"weekly_hours": 26, "days_worked_this_week": 3, "has_had_short_day": True, "last_shift_end_time": datetime(2026, 4, 30, 18, 0), "consecutive_days": 1, "last_worked_date": datetime(2026, 4, 30), "night_shifts_this_month": 0},
-                "Juan Camilo Correa": {"weekly_hours": 35, "days_worked_this_week": 4, "has_had_short_day": True, "last_shift_end_time": datetime(2026, 4, 30, 18, 0), "consecutive_days": 4, "last_worked_date": datetime(2026, 4, 30), "night_shifts_this_month": 0},
-                "Simon Mejia": {"weekly_hours": 35, "days_worked_this_week": 4, "has_had_short_day": True, "last_shift_end_time": datetime(2026, 4, 30, 16, 0), "consecutive_days": 4, "last_worked_date": datetime(2026, 4, 30), "night_shifts_this_month": 0},
-                "Brayan Carlosama": {"weekly_hours": 36, "days_worked_this_week": 4, "has_had_short_day": False, "last_shift_end_time": datetime(2026, 4, 30, 18, 0), "consecutive_days": 4, "last_worked_date": datetime(2026, 4, 30), "night_shifts_this_month": 0}
+                "Alberto Salazar": {"weekly_hours": 27, "days_worked_this_week": 3, "short_days_this_week": 0, "last_shift_end_time": datetime(2026, 4, 30, 18, 0), "consecutive_days": 2, "last_worked_date": datetime(2026, 4, 30), "night_shifts_this_month": 0},
+                "Camilo Buritica": {"weekly_hours": 35, "days_worked_this_week": 4, "short_days_this_week": 1, "last_shift_end_time": datetime(2026, 4, 30, 20, 0), "consecutive_days": 4, "last_worked_date": datetime(2026, 4, 30), "night_shifts_this_month": 0},
+                "Emilio Gonzalez": {"weekly_hours": 26, "days_worked_this_week": 3, "short_days_this_week": 1, "last_shift_end_time": datetime(2026, 4, 30, 18, 0), "consecutive_days": 1, "last_worked_date": datetime(2026, 4, 30), "night_shifts_this_month": 0},
+                "Juan Camilo Correa": {"weekly_hours": 35, "days_worked_this_week": 4, "short_days_this_week": 1, "last_shift_end_time": datetime(2026, 4, 30, 18, 0), "consecutive_days": 4, "last_worked_date": datetime(2026, 4, 30), "night_shifts_this_month": 0},
+                "Simon Mejia": {"weekly_hours": 35, "days_worked_this_week": 4, "short_days_this_week": 1, "last_shift_end_time": datetime(2026, 4, 30, 16, 0), "consecutive_days": 4, "last_worked_date": datetime(2026, 4, 30), "night_shifts_this_month": 0},
+                "Brayan Carlosama": {"weekly_hours": 36, "days_worked_this_week": 4, "short_days_this_week": 0, "last_shift_end_time": datetime(2026, 4, 30, 18, 0), "consecutive_days": 4, "last_worked_date": datetime(2026, 4, 30), "night_shifts_this_month": 0}
             }
         else:
-            return {name: {"weekly_hours": 0, "days_worked_this_week": 0, "has_had_short_day": False, "last_shift_end_time": None, "consecutive_days": 0, "last_worked_date": None, "night_shifts_this_month": 0} for name in TEAM_MEMBERS}
+            return {name: {"weekly_hours": 0, "days_worked_this_week": 0, "short_days_this_week": 0, "last_shift_end_time": None, "consecutive_days": 0, "last_worked_date": None, "night_shifts_this_month": 0} for name in TEAM_MEMBERS}
 
     team_stats = load_carry_over_data(YEAR, MONTH)
 
@@ -93,9 +93,19 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
     def needs_short_day(name, current_dt, short_days_assigned_today):
         if current_dt.weekday() >= 5: return False 
         stats = team_stats[name]
-        if stats["has_had_short_day"]: return False
-        if current_dt.weekday() == 4 or stats["days_worked_this_week"] >= 4: return True
-        quota = 2 if current_dt.weekday() == 2 else 1
+        
+        # If they already have 3 short days, they don't need another
+        if stats["short_days_this_week"] >= 3: 
+            return False
+            
+        # Force a short day if they are running out of days in the week to take them
+        days_left_to_work = 5 - stats["days_worked_this_week"]
+        short_days_needed = 3 - stats["short_days_this_week"]
+        if days_left_to_work <= short_days_needed: 
+            return True
+            
+        # Manage distribution: ~3 to 4 short days max per day across the entire team 
+        quota = 4 if current_dt.weekday() in [0, 1, 2] else 3
         return short_days_assigned_today < quota
 
     def needs_weekend_catchup(name, current_dt):
@@ -194,7 +204,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
         for name in TEAM_MEMBERS:
             team_stats[name]["weekly_hours"] = 0
             team_stats[name]["days_worked_this_week"] = 0
-            team_stats[name]["has_had_short_day"] = False
+            team_stats[name]["short_days_this_week"] = 0
 
     for day in range(1, num_days + 1):
         current_date = datetime(YEAR, MONTH, day)
@@ -217,9 +227,9 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                 if name not in workers_on_holiday:
                     working_today.add(name)
                     team_stats[name]["days_worked_this_week"] += 1
-                    if not team_stats[name]["has_had_short_day"] and is_weekday:
+                    if team_stats[name]["short_days_this_week"] < 3 and is_weekday:
                         pto_hours = 8
-                        team_stats[name]["has_had_short_day"] = True
+                        team_stats[name]["short_days_this_week"] += 1
                     else:
                         pto_hours = 9
                     team_stats[name]["weekly_hours"] += pto_hours
@@ -234,9 +244,9 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                 if name not in working_today: 
                     working_today.add(name)
                     team_stats[name]["days_worked_this_week"] += 1
-                    if not team_stats[name]["has_had_short_day"] and is_weekday:
+                    if team_stats[name]["short_days_this_week"] < 3 and is_weekday:
                         pto_hours = 8
-                        team_stats[name]["has_had_short_day"] = True
+                        team_stats[name]["short_days_this_week"] += 1
                     else:
                         pto_hours = 9
                     team_stats[name]["weekly_hours"] += pto_hours
@@ -333,7 +343,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                     team_stats[name]["weekly_hours"] += shift_hours
                     team_stats[name]["days_worked_this_week"] += 1
                     if is_short: 
-                        team_stats[name]["has_had_short_day"] = True
+                        team_stats[name]["short_days_this_week"] += 1
                         short_days_assigned_today += 1
                     team_stats[name]["last_shift_end_time"] = shift_end_dt
                     
@@ -372,7 +382,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                         team_stats[name]["days_worked_this_week"] += 1
                         team_stats[name]["night_shifts_this_month"] += 1
                         if is_short: 
-                            team_stats[name]["has_had_short_day"] = True
+                            team_stats[name]["short_days_this_week"] += 1
                             short_days_assigned_today += 1
                         team_stats[name]["last_shift_end_time"] = shift_end_dt
                         if team_stats[name]["last_worked_date"] == current_date - timedelta(days=1): team_stats[name]["consecutive_days"] += 1
@@ -396,7 +406,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                         team_stats[name]["weekly_hours"] += shift_hours
                         team_stats[name]["days_worked_this_week"] += 1
                         if is_short: 
-                            team_stats[name]["has_had_short_day"] = True
+                            team_stats[name]["short_days_this_week"] += 1
                             short_days_assigned_today += 1
                         team_stats[name]["last_shift_end_time"] = shift_end_dt
                         if team_stats[name]["last_worked_date"] == current_date - timedelta(days=1): team_stats[name]["consecutive_days"] += 1
@@ -404,7 +414,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                         team_stats[name]["last_worked_date"] = current_date
                         working_today.add(name)
                         
-                        early_shifts_count[name] += 1 # <-- WE RECORD THAT THEY TOOK THE SHIFT HERE
+                        early_shifts_count[name] += 1 
                         early_assigned = True
                         break
 
@@ -426,7 +436,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                             team_stats[name]["weekly_hours"] += shift_hours
                             team_stats[name]["days_worked_this_week"] += 1
                             if is_short: 
-                                team_stats[name]["has_had_short_day"] = True
+                                team_stats[name]["short_days_this_week"] += 1
                                 short_days_assigned_today += 1
                             team_stats[name]["last_shift_end_time"] = shift_end_dt
                             if team_stats[name]["last_worked_date"] == current_date - timedelta(days=1): team_stats[name]["consecutive_days"] += 1
@@ -476,18 +486,18 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
         l_w_d = stats["last_worked_date"].strftime("%Y-%m-%d") if stats["last_worked_date"] else None
         
         c.execute("""
-            INSERT INTO carry_over_stats (target_year, target_month, staff_member, weekly_hours, days_worked_this_week, has_had_short_day, last_shift_end_time, consecutive_days, last_worked_date, night_shifts_this_month)
+            INSERT INTO carry_over_stats (target_year, target_month, staff_member, weekly_hours, days_worked_this_week, short_days_this_week, last_shift_end_time, consecutive_days, last_worked_date, night_shifts_this_month)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (target_year, target_month, staff_member)
             DO UPDATE SET
                 weekly_hours = EXCLUDED.weekly_hours,
                 days_worked_this_week = EXCLUDED.days_worked_this_week,
-                has_had_short_day = EXCLUDED.has_had_short_day,
+                short_days_this_week = EXCLUDED.short_days_this_week,
                 last_shift_end_time = EXCLUDED.last_shift_end_time,
                 consecutive_days = EXCLUDED.consecutive_days,
                 last_worked_date = EXCLUDED.last_worked_date,
                 night_shifts_this_month = EXCLUDED.night_shifts_this_month;
-        """, (YEAR, MONTH, name, stats["weekly_hours"], stats["days_worked_this_week"], stats["has_had_short_day"], l_s_e, stats["consecutive_days"], l_w_d, stats["night_shifts_this_month"]))
+        """, (YEAR, MONTH, name, stats["weekly_hours"], stats["days_worked_this_week"], stats["short_days_this_week"], l_s_e, stats["consecutive_days"], l_w_d, stats["night_shifts_this_month"]))
 
     conn.commit()
     conn.close()
