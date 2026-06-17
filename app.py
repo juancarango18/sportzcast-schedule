@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-import subprocess
 import psycopg2
 import bcrypt
 import calendar
@@ -33,6 +32,19 @@ except:
 st.set_page_config(page_title="Sports Scheduler Pro", page_icon="🗓️", layout="wide")
 
 TEAM_MEMBERS = ["Alberto Salazar", "Camilo Buritica", "Emilio Gonzalez", "Juan Camilo Correa", "Simon Mejia", "Brayan Carlosama"]
+GAMES_SCHEDULE_PATH = "games_schedule.csv"
+REQUIRED_GAMES_COLUMNS = ["Date", "Sport", "Matchup", "Coverage_Start", "Coverage_End", "Venue"]
+
+def save_games_schedule_upload(uploaded_file):
+    uploaded_file.seek(0)
+    df = pd.read_csv(uploaded_file)
+    missing = [col for col in REQUIRED_GAMES_COLUMNS if col not in df.columns]
+    if missing:
+        return False, f"Missing required columns: {', '.join(missing)}"
+    if df.empty:
+        return False, "CSV file is empty."
+    df.to_csv(GAMES_SCHEDULE_PATH, index=False)
+    return True, f"Saved {len(df)} games to {GAMES_SCHEDULE_PATH}"
 
 # ==========================================
 # DATABASE HELPER FUNCTIONS (POSTGRES CLOUD)
@@ -315,14 +327,22 @@ if st.session_state.role == 'admin':
         st.markdown("### 📥 Step 1: Upload Scraped Games")
         st.info("Run the Python scraper locally on your computer, then upload the generated games_schedule.csv file here.")
         games_file = st.file_uploader("Upload games_schedule.csv", type=["csv"])
+        if games_file is not None:
+            saved, message = save_games_schedule_upload(games_file)
+            if saved:
+                st.success(message)
+            else:
+                st.error(message)
+        elif os.path.exists(GAMES_SCHEDULE_PATH):
+            st.caption(f"Using existing {GAMES_SCHEDULE_PATH} from a previous upload.")
 
     with col2:
         st.subheader("Step 2: Generate Schedule")
         if st.button("🧠 Generate Excel Matrix", type="primary", use_container_width=True, disabled=is_approved):
             
             # THE NEW SAFETY LOCK!
-            if not os.path.exists("games_schedule.csv"):
-                st.error("🚨 Missing Game Data! Please click '🚀 Run Web Scraper' (Step 1) first so the engine knows what games are happening.")
+            if not os.path.exists(GAMES_SCHEDULE_PATH):
+                st.error("🚨 Missing game data! Please upload games_schedule.csv in Step 1 first.")
             else:
                 with st.spinner("Running Master Algorithm..."):
                     generated_filename = scheduler.generate_matrix(selected_year, selected_month, all_ptos, all_rdos, holiday_workers)
@@ -496,19 +516,15 @@ if st.session_state.role == 'admin':
         st.markdown("---")
         st.markdown("### 🎮 Smart Game Auto-Assigner")
         st.info("This tool looks at your generated Schedule Matrix and the scraped games, then automatically assigns the best person based on their shift!")
-        
-       if db_file_bytes:
-        if games_file is None:
+
+        if not os.path.exists(GAMES_SCHEDULE_PATH):
             st.warning("⚠️ No games data found! Please upload the games_schedule.csv file in Step 1.")
         else:
             # We use session_state so the table doesn't disappear when you edit a cell
             if "assignments_df" not in st.session_state:
                 if st.button("🤖 Auto-Assign Games", type="primary", use_container_width=True):
                     with st.spinner("Calculating optimal assignments..."):
-                        
-                        # Reset the file pointer in memory just in case, then read!
-                        games_file.seek(0)
-                        games_df = pd.read_csv(games_file)
+                        games_df = pd.read_csv(GAMES_SCHEDULE_PATH)
                         matrix_df = pd.read_excel(io.BytesIO(db_file_bytes), index_col=0).fillna("")
                         
                         assignment_rows = []
