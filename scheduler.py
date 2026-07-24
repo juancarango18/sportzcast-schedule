@@ -13,7 +13,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
     MAX_WEEKLY_HOURS = 42
     MIN_REST_HOURS = 12
     MAX_CONSECUTIVE_DAYS = 6
-    FIXED_DAYS_OFF = {"Alberto Salazar": 1} 
+    FIXED_DAYS_OFF = {"Alberto Salazar": [1,3]} 
 
     def get_db_connection():
         return psycopg2.connect(st.secrets["connections"]["supabase"]["url"])
@@ -116,7 +116,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                 tomorrow_str = (current_dt + timedelta(days=1)).strftime("%Y-%m-%d")
                 cant_work_sun = (name in REQUESTED_DAYS_OFF and tomorrow_str in REQUESTED_DAYS_OFF[name]) or \
                                 (name in PTO_REQUESTS and tomorrow_str in PTO_REQUESTS[name]) or \
-                                (name in FIXED_DAYS_OFF and FIXED_DAYS_OFF[name] == 6)
+                                (name in FIXED_DAYS_OFF and 6 in FIXED_DAYS_OFF[name])
                 return cant_work_sun
             return False
         elif current_dt.weekday() == 6: 
@@ -128,7 +128,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
         date_str = current_dt.strftime("%Y-%m-%d")
         
         if name in REQUESTED_DAYS_OFF and date_str in REQUESTED_DAYS_OFF[name]: return False
-        if name in FIXED_DAYS_OFF and FIXED_DAYS_OFF[name] == current_dt.weekday(): return False
+        if name in FIXED_DAYS_OFF and current_dt.weekday() in FIXED_DAYS_OFF[name]: return False
         if stats["days_worked_this_week"] >= 5: return False
         if stats["weekly_hours"] + shift_hours > MAX_WEEKLY_HOURS: return False
         
@@ -271,7 +271,7 @@ def generate_matrix(YEAR, MONTH, PTO_REQUESTS, REQUESTED_DAYS_OFF, HOLIDAYS):
                     
                     is_working_holiday = (date_str in HOLIDAYS and name_to_force_off in HOLIDAYS[date_str])
                     
-                    if name_to_force_off not in working_today and (name_to_force_off not in FIXED_DAYS_OFF or FIXED_DAYS_OFF[name_to_force_off] != current_date.weekday()) and not is_working_holiday:
+                    if name_to_force_off not in working_today and (name_to_force_off not in FIXED_DAYS_OFF or current_date.weekday() not in FIXED_DAYS_OFF[name_to_force_off]) and not is_working_holiday:
                         working_today.add(name_to_force_off) 
                         comp_days_given += 1
                         break
